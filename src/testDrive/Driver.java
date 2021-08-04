@@ -20,5 +20,7 @@ public class Driver {
 			System.out.println(co.await());
 			Thread.sleep(1);
 		}
+		
+		co.close();
 	}
 }

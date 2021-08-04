@@ -17,13 +17,13 @@ class CoThreadHolder<T> implements AutoCloseable{
 		this.result = result;
 		threadPaused.set(true);
         notify();
-        while(threadPaused.get()){
-            try{
-                wait();
-            }
-            catch(InterruptedException e){
-            	throw new YieldInterruptedException();
-            }
+        try{
+        	while(threadPaused.get()){
+        		wait();
+        	}
+        }
+        catch(InterruptedException e){
+        	throw new YieldInterruptedException();
         }
 	}
 	
