@@ -5,6 +5,7 @@ import java.util.Queue;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.*;
 
 import asynchronous.CoThread;
@@ -12,7 +13,7 @@ import asynchronous.Promise;
 import asynchronous.UncheckedInterruptedException;
 
 public class Async<T> implements Supplier<Promise<T>>{
-	private static Map<Promise<Object>, Async<Object>.Instance> promises = new ConcurrentHashMap<>();
+	private static AtomicInteger promiseCount = new AtomicInteger(0);
 	private static Queue<Async<Object>.Instance> executionQueue = new ConcurrentLinkedQueue<>();
 	private Function<Await, T> func;
 	private String name = null;
@@ -32,28 +33,7 @@ public class Async<T> implements Supplier<Promise<T>>{
 		return inst.execute();
 	}
 	
-	public static void execute() throws InterruptedException{
-		
-		// start new thread to look out for complete promises so that their corresponding async.isntances can be added back onto the executionQueue
-		Thread promiseWatcher = new Thread(() -> {
-			try {
-				while(true) {
-					for(Promise<Object> promise : promises.keySet()) {
-						if (promise.isResolved()) {
-							// a promise is complete, add it's instance back onto the queue and remove it from promises
-							executionQueue.add(promises.get(promise));
-							promises.remove(promise);
-						}
-					}
-					Thread.sleep(1);
-				}
-			}
-			catch(InterruptedException e) {}
-			// thread interrupted. time to stop watching for promises.
-		}, "Async-promiseWatcher");
-		
-		promiseWatcher.start();
-		
+	public static synchronized void execute() throws InterruptedException{
 		// execution loop
 		while(true) {
 			while(!executionQueue.isEmpty()) {
@@ -65,17 +45,27 @@ public class Async<T> implements Supplier<Promise<T>>{
 				
 				// was it a yield or completion?
 				if (awaitResult != null) {
-					// yield
-					promises.put(awaitResult.value, instance);
+					// yield:
+					
+					// add logic to promise
+					awaitResult.value.then(() -> {
+						// put instance back on queue
+						executionQueue.add(instance);
+						// decrement promise counter to show that one instance is no longer awaiting a promise
+						promiseCount.decrementAndGet();
+					});
+					
+					// increment promise count to show that another instance is awaiting a promise
+					promiseCount.incrementAndGet();
 				}
 				else {
-					// completion
+					// completion:
 					instance.resolve.accept(instance.result);
 				}
 			}
 			
 			// execution queue is empty. Check if there are promises being waited on.
-			if (!promises.isEmpty()) {
+			if (promiseCount.get() > 0) {
 				// if so, wait for some time, then start the loop over again.
 				Thread.sleep(1);
 			}
@@ -84,9 +74,6 @@ public class Async<T> implements Supplier<Promise<T>>{
 				break;
 			}
 		}
-		
-		// stop the promise watcher
-		promiseWatcher.interrupt();
 	}
 	
 	

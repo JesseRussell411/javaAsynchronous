@@ -3,6 +3,7 @@ import java.util.Iterator;
 
 import asynchronous.*;
 import asynchronous.asyncAwait.Async;
+import asynchronous.asyncAwait.Async1;
 
 public class Driver {
 	public static void main(String[] args) throws InterruptedException{
@@ -38,8 +39,13 @@ public class Driver {
 			return await.apply(PromiseForHello) + await.apply(PromiseFor10); 
 		}, "getHello10");
 		
+		var getHelloAnd = new Async1<Double, String>((await, addition) -> {
+			return await.apply(getHello.get()) + addition;
+		});
+		
 		
 		getHello10.get().then(r -> {System.out.println(r);});
+		getHelloAnd.get(42.41).then(r -> {System.out.println(r);});
 		
 		Async.execute();
 	}
