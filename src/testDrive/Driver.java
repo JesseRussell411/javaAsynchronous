@@ -1,5 +1,6 @@
 package testDrive;
 import java.util.Iterator;
+import java.util.Random;
 
 import asynchronous.*;
 import asynchronous.asyncAwait.*;
@@ -44,21 +45,31 @@ public class Driver {
 		
 		
 		getHello10.get().then(r -> {System.out.println(r);});
-		getHelloAnd.get(42.41).then(r -> {System.out.println(r);});
+		getHelloAnd.apply(42.41).then(r -> {System.out.println(r);});
 		
 		
 		final var slowAdd = new Async2<Double, Double, Double>((await, d1, d2) -> {
 			return await.apply(new Promise<Double>(resolve -> new Thread(() -> {
 				try {
-					Thread.sleep(10000);
+					Thread.sleep(7000);
 					resolve.accept(d1 + d2);
 				}
 				catch (InterruptedException e) {}
 			}).start()));
-		});
+		}, "slowAdd");
+		
+		final var slowAddSpecific = new Async3<Double, Double, Long, Double>((await, d1, d2, waitTime) -> {
+			return await.apply(new Promise<Double>(resolve -> new Thread(() -> {
+				try {
+					Thread.sleep(waitTime);
+					resolve.accept(d1 + d2);
+				}
+				catch (InterruptedException e) {}
+			}).start()));
+		}, "slowAddSpecific");
 		
 		
-		var slowPromise = slowAdd.get(0.1, 0.2);
+		var slowPromise = slowAdd.apply(0.1, 0.2);
 		
 		// multiple execution threads? Why not!
 		new Thread(() -> { try { Async.execute(); } catch(InterruptedException e) {} }, "execution thread 1").start();
@@ -72,5 +83,36 @@ public class Driver {
 		System.out.println(slowPromise.await());
 		System.out.println(slowPromise.await());
 		
+		var rand = new Random();
+		
+		// lets try something different
+		new Thread(() -> {
+			try {
+				while(true) {
+					System.out.println(slowAddSpecific.apply(0.1, 0.2, (long)rand.nextInt(5000)).await());
+				}
+			}
+			catch(InterruptedException e) {}
+		}, "supplier 1").start();
+		
+		new Thread(() -> {
+			try {
+				while(true) {
+					System.out.println(slowAddSpecific.apply(0.1, 0.6, (long)rand.nextInt(5000)).await());
+				}
+			}
+			catch(InterruptedException e) {}
+		}, "supplier 2").start();
+		
+		new Thread(() -> {
+			try {
+				while(true) {
+					System.out.println(slowAddSpecific.apply(6.1, 0.6, (long)rand.nextInt(5000)).await());
+				}
+			}
+			catch(InterruptedException e) {}
+		}, "supplier 3").start();
+		
+		new Thread(() -> { try { while(true) {Async.execute();} } catch(InterruptedException e) {} }, "execution loop 1").start();
 	}
 }

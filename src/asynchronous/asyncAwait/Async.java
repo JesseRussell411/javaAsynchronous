@@ -1,19 +1,16 @@
 package asynchronous.asyncAwait;
 
-import java.util.Map;
 import java.util.Queue;
-import java.util.Set;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.*;
 
 import asynchronous.CoThread;
 import asynchronous.Promise;
-import asynchronous.UncheckedInterruptedException;
 
 public class Async<T> implements Supplier<Promise<T>>{
+	private static final long LISTENER_WAIT_MILLISECONDS = 1;
+	private static final int LISTENER_WAIT_NANOSECONDS = 0;
 	private static AtomicInteger promiseCount = new AtomicInteger(0);
 	private static AtomicInteger incompleteInstanceCount = new AtomicInteger(0);
 	private static Queue<Async<Object>.Instance> executionQueue = new ConcurrentLinkedQueue<>();
@@ -43,7 +40,7 @@ public class Async<T> implements Supplier<Promise<T>>{
 				final Async<Object>.Instance instance = instancePolled;
 				
 				// run instance until next yield or completion
-				var awaitResult = instance.coThread.await();
+				final var awaitResult = instance.coThread.await();
 				
 				// was it a yield or completion?
 				if (awaitResult != null) {
@@ -69,7 +66,7 @@ public class Async<T> implements Supplier<Promise<T>>{
 			// executionQueue appears to be empty, check if there's still incomplete async.instances
 			if (incompleteInstanceCount.get() > 0) {
 				// if so, wait for some time, then start the loop over again.
-				Thread.sleep(1);
+				Thread.sleep(LISTENER_WAIT_MILLISECONDS, LISTENER_WAIT_NANOSECONDS);
 			}
 			else {
 				// if not, stop the loop. execution is complete.
