@@ -7,14 +7,14 @@ import asynchronous.asyncAwait.*;
 public class Driver {
 	public static void main(String[] args) throws InterruptedException{
 		
-		var getHello = new Async<String>(await -> {
+		final var getHello = new Async<String>(await -> {
 			return await.apply(new Promise<String>(resolve -> new Thread(() -> {
 				try {Thread.sleep(4000);} catch(InterruptedException e) {}
 				resolve.accept("hello");
 			}, "getHello").start()));
 		}, "getHello");
 		
-		var get8 = new Async<Integer>(await -> {
+		final var get8 = new Async<Integer>(await -> {
 			int num = await.apply(new Promise<Integer>(resolve -> new Thread(() -> {
 					try {
 						Thread.sleep(1000);
@@ -27,18 +27,18 @@ public class Driver {
 			return num;
 		}, "get8");
 		
-		var add2 = new Async<Integer>(await -> {
+		final var add2 = new Async<Integer>(await -> {
 			var Promise8 = get8.get();
 			return await.apply(Promise8) + 2;
 		}, "add2");
 		
-		var getHello10 = new Async<String>(await -> {
+		final var getHello10 = new Async<String>(await -> {
 			var PromiseForHello = getHello.get();
 			var PromiseFor10 = add2.get();
 			return await.apply(PromiseForHello) + await.apply(PromiseFor10); 
 		}, "getHello10");
 		
-		var getHelloAnd = new Async1<Double, String>((await, addition) -> {
+		final var getHelloAnd = new Async1<Double, String>((await, addition) -> {
 			return await.apply(getHello.get()) + addition;
 		});
 		
@@ -47,7 +47,7 @@ public class Driver {
 		getHelloAnd.get(42.41).then(r -> {System.out.println(r);});
 		
 		
-		var slowAdd = new Async2<Double, Double, Double>((await, d1, d2) -> {
+		final var slowAdd = new Async2<Double, Double, Double>((await, d1, d2) -> {
 			return await.apply(new Promise<Double>(resolve -> new Thread(() -> {
 				try {
 					Thread.sleep(10000);
@@ -60,6 +60,9 @@ public class Driver {
 		
 		slowAdd.get(0.1, 0.2).then(r -> {System.out.println(r);});
 		
-		Async.execute();
+		// multiple execution thread? Why not!
+		new Thread(() -> { try { Async.execute(); } catch(InterruptedException e) {} }, "execution thread 1").start();
+		new Thread(() -> { try { Async.execute(); } catch(InterruptedException e) {} }, "execution thread 2").start();
+		new Thread(() -> { try { Async.execute(); } catch(InterruptedException e) {} }, "execution thread 3").start();
 	}
 }

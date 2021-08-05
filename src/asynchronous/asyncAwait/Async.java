@@ -33,12 +33,12 @@ public class Async<T> implements Supplier<Promise<T>>{
 		return inst.execute();
 	}
 	
-	public static synchronized void execute() throws InterruptedException{
+	public static void execute() throws InterruptedException{
 		// execution loop
 		while(true) {
-			while(!executionQueue.isEmpty()) {
-				// take next async.instance off queue.
-				Async<Object>.Instance instance = executionQueue.poll();
+			Async<Object>.Instance instancePolled;
+			while((instancePolled = executionQueue.poll()) != null) {
+				final Async<Object>.Instance instance = instancePolled;
 				
 				// run instance until next yield or completion
 				var awaitResult = instance.coThread.await();
