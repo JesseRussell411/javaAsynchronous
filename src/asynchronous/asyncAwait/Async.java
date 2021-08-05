@@ -8,6 +8,12 @@ import java.util.function.*;
 import asynchronous.CoThread;
 import asynchronous.Promise;
 
+/**
+ * Asyncronouse function used for asyncronouse programming. Call Async.execute at the end of the main method to run called async functions.
+ * @author jesse
+ *
+ * @param <T>
+ */
 public class Async<T> implements Supplier<Promise<T>>{
 	private static final long LISTENER_WAIT_MILLISECONDS = 1;
 	private static final int LISTENER_WAIT_NANOSECONDS = 0;
@@ -32,6 +38,10 @@ public class Async<T> implements Supplier<Promise<T>>{
 		return inst.execute();
 	}
 	
+	/**
+	 * Runs all async instances in the execution queue.
+	 * @throws InterruptedException
+	 */
 	public static void execute() throws InterruptedException{
 		// execution loop
 		while(true) {
@@ -75,7 +85,15 @@ public class Async<T> implements Supplier<Promise<T>>{
 		}
 	}
 	
-	public class Instance{
+	
+	// the following code is still jank
+	
+	/**
+	 * Call to an async function.
+	 * @author jesse
+	 *
+	 */
+	class Instance{
 		CoThread<Promise<Object>> coThread;
 		T result;
 		Promise<T> promise;
@@ -102,16 +120,18 @@ public class Async<T> implements Supplier<Promise<T>>{
 		}
 	}
 	
+	// Await functional class for awaiting promises in an async functional class.
 	public static class Await{
 		private Consumer<Promise<Object>> yield;
 		private Object result;
 		private Async<Object>.Instance instance;
 		
-		public Await(Consumer<Promise<Object>> yield, Async<Object>.Instance isntance) {
+		Await(Consumer<Promise<Object>> yield, Async<Object>.Instance isntance) {
 			this.instance = isntance;
 			this.yield = yield;
 		}
 		
+		// Awaits the given promise, returning it's result when it's resolved.
 		public <E> E apply(Promise<E> promise) {
 			promise.then(r -> {result = r;});
 			yield.accept((Promise<Object>)promise);

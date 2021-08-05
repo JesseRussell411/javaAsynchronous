@@ -1,5 +1,4 @@
 package testDrive;
-import java.util.Iterator;
 import java.util.Random;
 
 import asynchronous.*;
@@ -7,6 +6,49 @@ import asynchronous.asyncAwait.*;
 
 public class Driver {
 	public static void main(String[] args) throws InterruptedException{
+		// Instructions:
+		// ------------
+		// to make and async function, instantiate the Async class or one of it's siblings: Async1, Async2, Async3... etc. if you want the function to have parameters.
+		// Async1 takes one parameter, Async2 takes two, etc. Async of course takes no parameters.
+		// The constructor takes a lambda which takes the await functional class (Async.Await) and the appropriate number and types of parameters. The constructor also optionally
+		// takes a name (which is given to the thread running the function when it's called). The Async class implements Supplier<T>. Async1 implements Function<T1, R>.
+		// Async2 implements BiFunction<T1, T2, R>, etc. To call an async function, just use the appropriate functional class method. get() for Async, apply() for Async1, Async2, etc.
+		// Each call returns a promise. The function won't actually be executed until Async.execute is called so do that at the end of your main method.
+		
+		// I modeled all of this after javascript. Because I personally think that javascript is a beautiful language when it comes to asynchronous and functional programming.
+		// Just ignore everything else.
+		
+		// for instance:
+		
+		// in javascript:
+		//
+		// const fetchStuffFromServer = async (url) => {
+		//     return await httpFetchFunction(url);
+		// }
+		//
+		// ... later, in an async function:
+		// const stuff = await fetchStuffFromServer("http://stuffServer/stuff");
+		
+		
+		// in java:
+		//
+		// final var fetchStuffFromServer = new Async<String, Responce>((await, url) -> {
+		//     return await.apply(httpFetchFunction(url));
+		// }
+		//
+		// ... later, in an Async functional class:
+		// final var stuff = await.apply(fetchStuffFromServer("http://stuffServer/stuff");
+		
+		
+		// in javascript:
+		// return new Promise(resolve => resolve(42));
+		
+		// in java:
+		// return new Promise(resolve -> resolve.accept(42));
+		
+		
+		// A big mess that I call example 1 (the only example):
+		// ---------------------------------------------------
 		
 		final var getHello = new Async<String>(await -> {
 			return await.apply(new Promise<String>(resolve -> new Thread(() -> {
