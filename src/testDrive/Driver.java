@@ -58,11 +58,19 @@ public class Driver {
 		});
 		
 		
-		slowAdd.get(0.1, 0.2).then(r -> {System.out.println(r);});
+		var slowPromise = slowAdd.get(0.1, 0.2);
 		
 		// multiple execution threads? Why not!
 		new Thread(() -> { try { Async.execute(); } catch(InterruptedException e) {} }, "execution thread 1").start();
 		new Thread(() -> { try { Async.execute(); } catch(InterruptedException e) {} }, "execution thread 2").start();
 		new Thread(() -> { try { Async.execute(); } catch(InterruptedException e) {} }, "execution thread 3").start();
+		
+		// awaiting promise instead of calling then. unlike javascript, java can block.
+		new Thread(() -> { try { System.out.println(slowPromise.await() + "from steve"); } catch(InterruptedException e) {} }, "steve").start();
+		new Thread(() -> { try { System.out.println(slowPromise.await() + "from steve2"); } catch(InterruptedException e) {} }, "steve2").start();
+		new Thread(() -> { try { System.out.println(slowPromise.await() + "from steve3"); } catch(InterruptedException e) {} }, "steve3").start();
+		System.out.println(slowPromise.await());
+		System.out.println(slowPromise.await());
+		
 	}
 }
