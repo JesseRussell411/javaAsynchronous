@@ -130,9 +130,10 @@ public class Driver {
 					await.apply(world);
 		}, "getHelloworld");
 		
-		final var main = new Async<Object>(await -> {
+		final var main = new AsyncVoid(await -> {
+			System.out.println("Getting hello world...");
 			System.out.println(await.apply(getHelloworld.get()));
-			return null;
+			System.out.println("Hello world has been gotten.");
 		}, "main");
 		
 		
