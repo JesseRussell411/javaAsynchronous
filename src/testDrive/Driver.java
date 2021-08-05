@@ -22,6 +22,25 @@ public class Driver {
 		
 		// in javascript:
 		//
+		// const foo = async() => "bar"
+		// 
+		// ... later, in an async function:
+		// cosnt bar = await foo();
+		
+		// in java:
+		//
+		// final var foo = new Async<String>(await -> "bar");
+		//
+		// ... later, in an Async functional class:
+		// final var bar = await.apply(foo.get());
+		//
+		// ... even later, probably at the end of main:
+		// Async.execute();
+		
+		
+		
+		// in javascript:
+		//
 		// const fetchStuffFromServer = async (url) => {
 		//     return await httpFetchFunction(url);
 		// }
@@ -29,18 +48,18 @@ public class Driver {
 		// ... later, in an async function:
 		// const stuff = await fetchStuffFromServer("http://stuffServer/stuff");
 		
-		
 		// in java:
 		//
-		// final var fetchStuffFromServer = new Async<String, Responce>((await, url) -> {
+		// final var fetchStuffFromServer = new Async1<String, Responce>((await, url) -> {
 		//     return await.apply(httpFetchFunction(url));
 		// }
 		//
 		// ... later, in an Async functional class:
-		// final var stuff = await.apply(fetchStuffFromServer("http://stuffServer/stuff"));
+		// final var stuff = await.apply(fetchStuffFromServer.apply("http://stuffServer/stuff"));
 		//
 		// ... even later, probably at the end of main:
 		// Async.execute();
+		
 		
 		
 		// in javascript:
@@ -49,17 +68,81 @@ public class Driver {
 		// in java:
 		// return new Promise(resolve -> resolve.accept(42));
 		
+		// in javascript:
+		// somePromise.then(r => console.log(r));
 		
-		// A big mess that I call example 1 (the only example):
-		// ---------------------------------------------------
+		// in java:
+		// somePromise.then(r -> { System.out.println(r); });
+		
 		
 		final var getHello = new Async<String>(await -> {
-			return await.apply(new Promise<String>(resolve -> new Thread(() -> {
-				try {Thread.sleep(4000);} catch(InterruptedException e) {}
-				resolve.accept("hello");
-			}, "getHello").start()));
+			// make a promise that will eventually resolve to "hello"
+			final var helloPromise = new Promise<String>(resolve -> 
+				new Thread(() -> {
+					// sleep and be lazy
+					try {Thread.sleep(4000);} catch(InterruptedException e) {}
+					
+					// get around to returning "hello"
+					resolve.accept("hello");
+				}, "getHello").start());
+					
+			// await that promise and return the result;
+			return await.apply(helloPromise);
 		}, "getHello");
 		
+		final var getSpace = new Async<String>(await -> {
+			// make a promise that will eventually resolve to "hello"
+			final var spacePromise /*insert joke about Elon Musk*/ = new Promise<String>(resolve -> 
+				new Thread(() -> {
+					// sleep and be lazy
+					try {Thread.sleep(4000);} catch(InterruptedException e) {}
+					
+					// get around to returning " "
+					resolve.accept(" ");
+				}, "getHello").start());
+					
+			// await that promise and return the result;
+			return await.apply(spacePromise);
+		}, "getSpace");
+		
+		final var getWorld = new Async<String>(await -> {
+			// make a promise that will eventually resolve to "hello"
+			final var worldPromise = new Promise<String>(resolve -> 
+				new Thread(() -> {
+					// sleep and be lazy
+					try {Thread.sleep(4000);} catch(InterruptedException e) {}
+					
+					// get around to returning "world"
+					resolve.accept("world");
+				}, "getHello").start());
+					
+			// await that promise and return the result;
+			return await.apply(worldPromise);
+		}, "getWorld");
+		
+		final var getHelloworld = new Async<String>(await -> {
+			final var hello = getHello.get();
+			final var space = getSpace.get();
+			final var world = getWorld.get();
+			
+			return await.apply(hello) +
+					await.apply(space) +
+					await.apply(world);
+		}, "getHelloworld");
+		
+		final var main = new Async<Object>(await -> {
+			System.out.println(await.apply(getHelloworld.get()));
+			return null;
+		}, "main");
+		
+		
+		System.out.println("Hello world example: ");
+		main.get();
+		// execute doesn't HAVE to be called at the end of main. It can really be called anywhere. But beware, it blocks until all async function calls are complete.
+		Async.execute();
+		
+		// A big mess that I call example 2:
+		// ---------------------------------------------------
 		final var get8 = new Async<Integer>(await -> {
 			int num = await.apply(new Promise<Integer>(resolve -> new Thread(() -> {
 					try {
@@ -121,7 +204,7 @@ public class Driver {
 		new Thread(() -> { try { Async.execute(); } catch(InterruptedException e) {} }, "execution thread 2").start();
 		new Thread(() -> { try { Async.execute(); } catch(InterruptedException e) {} }, "execution thread 3").start();
 		
-		// awaiting promise instead of calling then. unlike javascript, java can block.
+		// awaiting promise instead of calling them. unlike javascript, java can block.
 		new Thread(() -> { try { System.out.println(slowPromise.await() + "from steve"); } catch(InterruptedException e) {} }, "steve").start();
 		new Thread(() -> { try { System.out.println(slowPromise.await() + "from steve2"); } catch(InterruptedException e) {} }, "steve2").start();
 		new Thread(() -> { try { System.out.println(slowPromise.await() + "from steve3"); } catch(InterruptedException e) {} }, "steve3").start();
