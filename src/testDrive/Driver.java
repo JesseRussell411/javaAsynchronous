@@ -2,8 +2,7 @@ package testDrive;
 import java.util.Iterator;
 
 import asynchronous.*;
-import asynchronous.asyncAwait.Async;
-import asynchronous.asyncAwait.Async1;
+import asynchronous.asyncAwait.*;
 
 public class Driver {
 	public static void main(String[] args) throws InterruptedException{
@@ -46,6 +45,20 @@ public class Driver {
 		
 		getHello10.get().then(r -> {System.out.println(r);});
 		getHelloAnd.get(42.41).then(r -> {System.out.println(r);});
+		
+		
+		var slowAdd = new Async2<Double, Double, Double>((await, d1, d2) -> {
+			return await.apply(new Promise<Double>(resolve -> new Thread(() -> {
+				try {
+					Thread.sleep(10000);
+					resolve.accept(d1 + d2);
+				}
+				catch (InterruptedException e) {}
+			}).start()));
+		});
+		
+		
+		slowAdd.get(0.1, 0.2).then(r -> {System.out.println(r);});
 		
 		Async.execute();
 	}
