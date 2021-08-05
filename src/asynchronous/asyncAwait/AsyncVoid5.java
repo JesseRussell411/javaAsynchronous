@@ -1,7 +1,6 @@
 package asynchronous.asyncAwait;
 import functionPlus.*;
 
-
 import asynchronous.Promise;
 
 public class AsyncVoid5<T1, T2, T3, T4, T5> implements PentaFunction<T1, T2, T3, T4, T5, Promise<Object>>{

@@ -2,7 +2,6 @@ package asynchronous.asyncAwait;
 import functionPlus.*;
 import java.util.function.*;
 
-
 import asynchronous.Promise;
 
 public class AsyncVoid2<T1, T2> implements BiFunction<T1, T2, Promise<Object>>{

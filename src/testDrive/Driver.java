@@ -9,7 +9,7 @@ public class Driver {
 		// Instructions:
 		// ------------
 		// to make an async function, instantiate the Async class or one of it's siblings: Async1, Async2, Async3... etc. if you want the function to have parameters.
-		// Async1 takes one parameter, Async2 takes two, etc. Async of course takes no parameters.
+		// Async1 takes one parameter, Async2 takes two, etc. Async of course takes no parameters. Use AsyncVoid if there's nothing to return.
 		// The constructor takes a lambda which takes the await functional class (Async.Await) and the appropriate number and types of parameters. The constructor also optionally
 		// takes a name (which is given to the thread running the function when it's called). The Async class implements Supplier<T>. Async1 implements Function<T1, R>.
 		// Async2 implements BiFunction<T1, T2, R>, etc. To call an async function, just use the appropriate functional class method. get() for Async, apply() for Async1, Async2, etc.
@@ -242,6 +242,9 @@ public class Driver {
 			catch(InterruptedException e) {}
 		}, "supplier 3").start();
 		
-		new Thread(() -> { try { while(true) {Async.execute();} } catch(InterruptedException e) {} }, "execution loop 1").start();
+		new Thread(() -> { try { while(true) { Async.execute();} } catch(InterruptedException e) {} }, "execution loop 1").start();
+		new Thread(() -> { try { while(true) { Async.execute();} } catch(InterruptedException e) {} }, "execution loop 2").start();
+		new Thread(() -> { try { while(true) { Async.execute();} } catch(InterruptedException e) {} }, "execution loop 3").start();
+		new Thread(() -> { try { while(true) { Async.execute();} } catch(InterruptedException e) {} }, "execution loop 4").start();
 	}
 }

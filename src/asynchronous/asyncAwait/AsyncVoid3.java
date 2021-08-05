@@ -1,7 +1,6 @@
 package asynchronous.asyncAwait;
 import functionPlus.*;
 
-
 import asynchronous.Promise;
 
 public class AsyncVoid3<T1, T2, T3> implements TriFunction<T1, T2, T3, Promise<Object>>{

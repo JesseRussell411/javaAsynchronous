@@ -1,7 +1,6 @@
 package asynchronous.asyncAwait;
 import functionPlus.*;
 
-
 import asynchronous.Promise;
 
 public class AsyncVoid4<T1, T2, T3, T4> implements QuadFunction<T1, T2, T3, T4, Promise<Object>>{

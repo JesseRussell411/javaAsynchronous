@@ -1,7 +1,6 @@
 package asynchronous.asyncAwait;
 import functionPlus.*;
 
-
 import asynchronous.Promise;
 
 public class AsyncVoid8<T1, T2, T3, T4, T5, T6, T7, T8> implements OctoFunction<T1, T2, T3, T4, T5, T6, T7, T8, Promise<Object>>{

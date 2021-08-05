@@ -1,7 +1,6 @@
 package asynchronous.asyncAwait;
 import functionPlus.*;
 
-
 import asynchronous.Promise;
 
 public class AsyncVoid6<T1, T2, T3, T4, T5, T6> implements HexaFunction<T1, T2, T3, T4, T5, T6, Promise<Object>>{
