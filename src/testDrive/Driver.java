@@ -37,7 +37,7 @@ public class Driver {
 		// }
 		//
 		// ... later, in an Async functional class:
-		// final var stuff = await.apply(fetchStuffFromServer("http://stuffServer/stuff");
+		// final var stuff = await.apply(fetchStuffFromServer("http://stuffServer/stuff"));
 		
 		
 		// in javascript:
