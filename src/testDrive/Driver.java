@@ -8,7 +8,7 @@ public class Driver {
 	public static void main(String[] args) throws InterruptedException{
 		// Instructions:
 		// ------------
-		// to make and async function, instantiate the Async class or one of it's siblings: Async1, Async2, Async3... etc. if you want the function to have parameters.
+		// to make an async function, instantiate the Async class or one of it's siblings: Async1, Async2, Async3... etc. if you want the function to have parameters.
 		// Async1 takes one parameter, Async2 takes two, etc. Async of course takes no parameters.
 		// The constructor takes a lambda which takes the await functional class (Async.Await) and the appropriate number and types of parameters. The constructor also optionally
 		// takes a name (which is given to the thread running the function when it's called). The Async class implements Supplier<T>. Async1 implements Function<T1, R>.
