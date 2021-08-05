@@ -5,6 +5,7 @@ import java.util.Queue;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.*;
 
@@ -14,6 +15,7 @@ import asynchronous.UncheckedInterruptedException;
 
 public class Async<T> implements Supplier<Promise<T>>{
 	private static AtomicInteger promiseCount = new AtomicInteger(0);
+	private static AtomicInteger incompleteInstanceCount = new AtomicInteger(0);
 	private static Queue<Async<Object>.Instance> executionQueue = new ConcurrentLinkedQueue<>();
 	private Function<Await, T> func;
 	private String name = null;
@@ -64,8 +66,8 @@ public class Async<T> implements Supplier<Promise<T>>{
 				}
 			}
 			
-			// execution queue is empty. Check if there are promises being waited on.
-			if (promiseCount.get() > 0) {
+			// executionQueue appears to be empty, check if there's still incomplete async.instances
+			if (incompleteInstanceCount.get() > 0) {
 				// if so, wait for some time, then start the loop over again.
 				Thread.sleep(1);
 			}
@@ -75,8 +77,6 @@ public class Async<T> implements Supplier<Promise<T>>{
 			}
 		}
 	}
-	
-	
 	
 	public class Instance{
 		CoThread<Promise<Object>> coThread;
@@ -98,7 +98,8 @@ public class Async<T> implements Supplier<Promise<T>>{
 		
 		public Promise<T> execute(){
 			coThread.start();
-			promise = new Promise<T>(resolve -> this.resolve = resolve);
+			incompleteInstanceCount.incrementAndGet();
+			promise = new Promise<T>(resolve -> this.resolve = resolve).then(() -> {incompleteInstanceCount.decrementAndGet();});
 			executionQueue.add((Async<Object>.Instance)this);
 			return promise;
 		}

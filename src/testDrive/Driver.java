@@ -60,7 +60,7 @@ public class Driver {
 		
 		slowAdd.get(0.1, 0.2).then(r -> {System.out.println(r);});
 		
-		// multiple execution thread? Why not!
+		// multiple execution threads? Why not!
 		new Thread(() -> { try { Async.execute(); } catch(InterruptedException e) {} }, "execution thread 1").start();
 		new Thread(() -> { try { Async.execute(); } catch(InterruptedException e) {} }, "execution thread 2").start();
 		new Thread(() -> { try { Async.execute(); } catch(InterruptedException e) {} }, "execution thread 3").start();
