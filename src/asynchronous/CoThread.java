@@ -10,9 +10,11 @@ import java.util.function.Consumer;
 public class CoThread<T> implements AutoCloseable {
 	private CoThreadHolder<T> threadHolder;
 	public boolean notComplete() { return threadHolder.notComplete(); }
-	public boolean complete() { return threadHolder.complete(); }
+	public boolean isComplete() { return threadHolder.isComplete(); }
 	public boolean started() { return threadHolder.started(); }
+	public String getName() { return threadHolder.getName(); }
 	
+	public CoThread(Consumer<Consumer<T>> routine, String name) { threadHolder = new CoThreadHolder<>(routine, name); }
 	public CoThread(Consumer<Consumer<T>> routine) { threadHolder = new CoThreadHolder<>(routine); }
 	
 	public CoThread<T> start() { 
@@ -20,8 +22,8 @@ public class CoThread<T> implements AutoCloseable {
 		return this;
 	}
 	
-	public T await() { return threadHolder.await(); }
-	public Promise<T> get() { return threadHolder.get(); }
+	public Result<T> await() { return threadHolder.await(); }
+	public Promise<Result<T>> get() { return threadHolder.get(); }
 	
 	@Override
 	public void finalize() throws Exception {
@@ -36,30 +38,40 @@ public class CoThread<T> implements AutoCloseable {
 		threadHolder.close();
 	}
 	
+	// o------------o
+	// | subclasses |
+	// o------------o
 	public static class Result<T>{
 		public final T value;
 		Result(T value) { this.value = value; }
 	}
 	
+	
 	private static class CoThreadHolder<T> implements AutoCloseable{
-		private AtomicBoolean threadPaused = new AtomicBoolean(false);
-		private AtomicBoolean complete = new AtomicBoolean(false);
-		private AtomicBoolean started = new AtomicBoolean(false);
-		private Promise<T> promise = null;
+		private boolean threadPaused = false;
+		private Promise<Result<T>> promise = null;
+		private boolean complete = false;
+		private boolean started = false;
 		private Thread thread = null;
+		private String name = null;
 		private T result = null;
+		
+		public String getName() { return name; }
+		
 		
 		@SuppressWarnings("serial")
 		private static class YieldInterruptedException extends RuntimeException{}
 		
 		private synchronized void yield(T result) {
-			if (promise != null) { promise.resolve(this.result); }
-			
+			// handle result
+			if (promise != null) { promise.resolve(new Result<T>(this.result)); }
 			this.result = result;
-			threadPaused.set(true);
+			
+			// wait for next await or get call
+			threadPaused = true;
 			notify();
 			try{
-				while(threadPaused.get()){
+				while(threadPaused){
 					wait();
 				}
 			}
@@ -69,23 +81,32 @@ public class CoThread<T> implements AutoCloseable {
 		}
 		
 		
-		public boolean notComplete() { return !complete.get(); }
-		public boolean complete() { return complete.get(); }
-		public boolean started() { return started.get(); }
+		public boolean notComplete() { return !complete; }
+		public boolean isComplete() { return complete; }
+		public boolean started() { return started; }
 		
-		
-		public CoThreadHolder(Consumer<Consumer<T>> routine) {
+		public CoThreadHolder(Consumer<Consumer<T>> routine, String name) {
 			if (routine == null) { throw new NullPointerException(); }
+			this.name = name;
 			
-			thread = new Thread(() -> {
+			Runnable fullRoutine = () -> {
 				synchronized(this) {
-					// wait for start() call
 					try{
-						while(threadPaused.get()){
+						// wait for start() call
+						while(threadPaused){
 							wait();
 						}
-					} catch(InterruptedException e){
-						complete.set(true);
+					
+						// start was called, wait for first await or get.
+						threadPaused = true;
+						notify();
+						while(threadPaused) {
+							wait();
+						}
+					}
+					catch(InterruptedException e) {
+						complete = true;
+						if (promise != null) { promise.resolve(null); }
 						notify();
 						return;
 					}
@@ -97,25 +118,36 @@ public class CoThread<T> implements AutoCloseable {
 					catch(YieldInterruptedException e) {}
 					
 					// routine is complete (or interrupted)
-					complete.set(true);
+					complete = true;
+					if (promise != null) { promise.resolve(null); }
 					notify();
 				}
-			});
+			};
+			if (name != null) {
+				thread = new Thread(fullRoutine, "CoThread-" + name);
+			}
+			else {
+				thread = new Thread(fullRoutine, "CoThread");
+			}
+		}
+		
+		public CoThreadHolder(Consumer<Consumer<T>> routine) {
+			this(routine, null);
 		}
 		
 		
 		public synchronized void start(){
-			if (started()) {
+			if (started) {
 				return;
 			}
 			
 			try {
 				thread.start();
-				started.set(true);
+				started = true;
 				
-				threadPaused.set(false);
+				threadPaused = false;
 				notify();
-				while(!threadPaused.get() && !complete.get()){
+				while(!threadPaused && !complete){
 					wait();
 				}
 			}
@@ -132,50 +164,53 @@ public class CoThread<T> implements AutoCloseable {
 			}
 		}
 		
-		public synchronized Promise<T> get(){
+		public synchronized Promise<Result<T>> get() {
 			if (!started()) { throw new CoThreadNotStartedException(); }
 			promise = new Promise<>();
 			
-			threadPaused.set(false);
+			threadPaused = false;
 			notify();
 			
 			// don't wait
 			return promise;
 		}
 		
-		public synchronized T await() {
+		public synchronized Result<T> await() {
 			if (!started()) { throw new CoThreadNotStartedException(); }
-			if (complete.get()) { return null; }
+			promise = null;
 			
-			
-			T result = this.result;
-			
+			threadPaused = false;
+			notify();
 			try {
-				threadPaused.set(false);
-				notify();
-				while(!threadPaused.get() && !complete.get()){
+				while(!threadPaused && !complete) {
 					wait();
 				}
-				
-				return result;
 			}
-			catch(InterruptedException e) {
+			catch (InterruptedException e) {
 				throw new UncheckedInterruptedException(e);
+			}
+			
+			if (complete) {
+				return null;
+			}
+			else {
+				return new Result<T>(result);
 			}
 		}
 		
 		
 		@Override
 		public synchronized void close() throws Exception {
-			if (!complete.get()) {
+			if (!complete) {
 				thread.interrupt();
 				notify();
-				while(!complete.get()) {
+				while(!complete) {
 					wait();
 				}
 			}
 		}
 		
+		// for garbage collector
 		void closeWithoutWait() {
 			thread.interrupt();
 		}

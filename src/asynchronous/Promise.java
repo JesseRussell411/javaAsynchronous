@@ -72,7 +72,18 @@ public class Promise<T> {
         // set resolved
         resolved = true;
         
+        
         // run the next function (given to us by the then method)
         runNextFunc();
+        
+        // notify threads stuck in the await function that the wait is over.
+        notifyAll();
+    }
+    
+    public synchronized T await() throws InterruptedException{
+    	while(!resolved) {
+    		wait();
+    	}
+    	return result;
     }
 }
