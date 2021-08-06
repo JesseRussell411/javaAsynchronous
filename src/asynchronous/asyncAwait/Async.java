@@ -146,7 +146,7 @@ public class Async<T> implements Supplier<Promise<T>>{
 		}
 		
 		// Awaits the given promise, returning it's result when it's resolved.
-		public <E> E apply(Promise<E> promise) throws UncheckedException {
+		public <E> E apply(Promise<E> promise) throws UncheckedException, RuntimeException {
 			promise.then(r -> {result = r;});
 			promise.error(e -> {exception = e;});
 			yield.accept((Promise<Object>)promise);
