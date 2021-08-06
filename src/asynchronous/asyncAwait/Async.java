@@ -17,7 +17,6 @@ import asynchronous.Promise;
 public class Async<T> implements Supplier<Promise<T>>{
 	private static final long LISTENER_WAIT_MILLISECONDS = 1;
 	private static final int LISTENER_WAIT_NANOSECONDS = 0;
-	private static AtomicInteger promiseCount = new AtomicInteger(0);
 	private static AtomicInteger incompleteInstanceCount = new AtomicInteger(0);
 	private static Queue<Async<Object>.Instance> executionQueue = new ConcurrentLinkedQueue<>();
 	private Function<Await, T> func;
@@ -60,12 +59,7 @@ public class Async<T> implements Supplier<Promise<T>>{
 					awaitResult.value.then(() -> {
 						// put instance back on queue
 						executionQueue.add(instance);
-						// decrement promise counter to show that one instance is no longer awaiting a promise
-						promiseCount.decrementAndGet();
 					});
-					
-					// increment promise count to show that another instance is awaiting a promise
-					promiseCount.incrementAndGet();
 				}
 				else {
 					// completion:
