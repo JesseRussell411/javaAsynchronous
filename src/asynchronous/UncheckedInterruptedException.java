@@ -1,9 +1,13 @@
 package asynchronous;
 
-public class UncheckedInterruptedException extends RuntimeException {
+import exceptionsPlus.UncheckedException;
+
+public class UncheckedInterruptedException extends UncheckedException {
 	private static final long serialVersionUID = 1L;
-	public final InterruptedException original;
+	public InterruptedException getOriginal() {
+		return (InterruptedException)getOriginal();
+	}
 	public UncheckedInterruptedException(InterruptedException original) {
-		this.original = original;
+		super(original);
 	}
 }

@@ -2,6 +2,8 @@ package asynchronous;
 
 import java.util.function.Consumer;
 
+import exceptionsPlus.UncheckedException;
+
 
 
 
@@ -10,6 +12,7 @@ public class CoThread<T> implements AutoCloseable {
 	private CoThreadHolder<T> threadHolder;
 	public boolean notComplete() { return threadHolder.notComplete(); }
 	public boolean isComplete() { return threadHolder.isComplete(); }
+	public boolean isErrored() { return threadHolder.isErrored(); }
 	public boolean started() { return threadHolder.started(); }
 	public String getName() { return threadHolder.getName(); }
 	
@@ -50,10 +53,12 @@ public class CoThread<T> implements AutoCloseable {
 		private boolean threadPaused = false;
 		private Promise<Result<T>> promise = null;
 		private boolean complete = false;
+		private boolean errored = false;
 		private boolean started = false;
 		private Thread thread = null;
 		private String name = null;
 		private T result = null;
+		private RuntimeException exception = null;
 		
 		public String getName() { return name; }
 		
@@ -82,6 +87,7 @@ public class CoThread<T> implements AutoCloseable {
 		
 		public boolean notComplete() { return !complete; }
 		public boolean isComplete() { return complete; }
+		public boolean isErrored() { return errored; }
 		public boolean started() { return started; }
 		
 		public CoThreadHolder(Consumer<Consumer<T>> routine, String name) {
@@ -115,6 +121,16 @@ public class CoThread<T> implements AutoCloseable {
 						routine.accept(r -> this.yield(r));
 					}
 					catch(YieldInterruptedException e) {}
+					catch(RuntimeException e) {
+						errored = true;
+						exception = e;
+						complete = true;
+						if (promise != null) {
+							promise.reject(e);
+						}
+						notify();
+						return;
+					}
 					
 					// routine is complete (or interrupted)
 					complete = true;
@@ -174,7 +190,7 @@ public class CoThread<T> implements AutoCloseable {
 			return promise;
 		}
 		
-		public synchronized Result<T> await() {
+		public synchronized Result<T> await() throws UncheckedException {
 			if (!started()) { throw new CoThreadNotStartedException(); }
 			promise = null;
 			
@@ -190,6 +206,9 @@ public class CoThread<T> implements AutoCloseable {
 			}
 			
 			if (complete) {
+				if (errored) {
+					throw exception;
+				}
 				return null;
 			}
 			else {

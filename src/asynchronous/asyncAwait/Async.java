@@ -7,6 +7,7 @@ import java.util.function.*;
 
 import asynchronous.CoThread;
 import asynchronous.Promise;
+import exceptionsPlus.UncheckedException;
 
 /**
  * Asyncronouse function used for asyncronouse programming. Call Async.execute at the end of the main method to run called async functions.
@@ -49,15 +50,30 @@ public class Async<T> implements Supplier<Promise<T>>{
 				final Async<Object>.Instance instance = instancePolled;
 				
 				// run instance until next yield or completion
-				final var awaitResult = instance.coThread.await();
+				CoThread.Result<Promise<Object>> awaitResult = null;
+				Exception exception = null;
 				
-				// was it a yield or completion?
-				if (awaitResult != null) {
+				try {
+					awaitResult = instance.coThread.await();
+				}
+				catch (Exception e) {
+					exception = e;
+				}
+				
+				// was it an error, yield, or completion?
+				if (exception != null) {
+					//error:
+					instance.reject.accept(exception);
+				}
+				else if (awaitResult != null) {
 					// yield:
 					
 					// add logic to promise
+					// put instance back on queue
 					awaitResult.value.then(() -> {
-						// put instance back on queue
+						executionQueue.add(instance);
+					});
+					awaitResult.value.error(() -> {
 						executionQueue.add(instance);
 					});
 				}
@@ -92,6 +108,7 @@ public class Async<T> implements Supplier<Promise<T>>{
 		T result;
 		Promise<T> promise;
 		Consumer<T> resolve;
+		Consumer<Exception> reject;
 		Async<T> parent;
 		
 		public boolean notComplete() { return coThread.notComplete(); }
@@ -108,7 +125,9 @@ public class Async<T> implements Supplier<Promise<T>>{
 		public Promise<T> execute(){
 			coThread.start();
 			incompleteInstanceCount.incrementAndGet();
-			promise = new Promise<T>(resolve -> this.resolve = resolve).then(() -> {incompleteInstanceCount.decrementAndGet();});
+			promise = new Promise<T>((resolve, reject) -> {this.resolve = resolve; this.reject = reject;});
+			promise.then(() -> {incompleteInstanceCount.decrementAndGet();});
+			promise.error(() -> {incompleteInstanceCount.decrementAndGet();});
 			executionQueue.add((Async<Object>.Instance)this);
 			return promise;
 		}
@@ -118,6 +137,7 @@ public class Async<T> implements Supplier<Promise<T>>{
 	public static class Await{
 		private Consumer<Promise<Object>> yield;
 		private Object result;
+		private Exception exception;
 		private Async<Object>.Instance instance;
 		
 		Await(Consumer<Promise<Object>> yield, Async<Object>.Instance isntance) {
@@ -126,10 +146,25 @@ public class Async<T> implements Supplier<Promise<T>>{
 		}
 		
 		// Awaits the given promise, returning it's result when it's resolved.
-		public <E> E apply(Promise<E> promise) {
+		public <E> E apply(Promise<E> promise) throws UncheckedException {
 			promise.then(r -> {result = r;});
+			promise.error(e -> {exception = e;});
 			yield.accept((Promise<Object>)promise);
-			return (E)result;
+			
+			if (promise.isErrored()) {
+				if (RuntimeException.class.isAssignableFrom(exception.getClass())) {
+					throw (RuntimeException)exception;
+				}
+				else {
+					throw new UncheckedException(exception);
+				}
+			}
+			else if (promise.isResolved()) {
+				return (E)result;
+			}
+			else {
+				return null;
+			}
 		}
 	}
 }

@@ -142,7 +142,36 @@ public class Driver {
 		// execute doesn't HAVE to be called at the end of main. It can really be called anywhere. But beware, it blocks until all async function calls are complete.
 		Async.execute();
 		
-		// A big mess that I call example 2:
+		
+		
+		// Error handling example/test:
+		// ---------------------------
+		final var sleepThrow = new AsyncVoid(await -> {
+			throw new NullPointerException("This pointer doesn't exist. Oh, wait that's void! sorry");
+		});
+		
+		final var runSleepThrowAsIfItDoesntThrow = new AsyncVoid(await -> {
+			await.apply(sleepThrow.get());
+		});
+		
+		final var main2 = new AsyncVoid(await -> {
+			
+			System.out.println("Error handling test...");
+			
+			try {
+				await.apply(runSleepThrowAsIfItDoesntThrow.get());
+			}
+			catch(NullPointerException e) {
+				System.out.println("If this text is displayed. Error handling works.");
+			}
+			
+		});
+		
+		main2.get();
+		Async.execute();
+		
+		
+		// A big mess that I call example 3:
 		// ---------------------------------------------------
 		final var get8 = new Async<Integer>(await -> {
 			int num = await.apply(new Promise<Integer>(resolve -> new Thread(() -> {
@@ -212,9 +241,9 @@ public class Driver {
 		System.out.println(slowPromise.await());
 		System.out.println(slowPromise.await());
 		
-		var rand = new Random();
 		
 		// lets try something different
+		var rand = new Random();
 		new Thread(() -> {
 			try {
 				while(true) {
