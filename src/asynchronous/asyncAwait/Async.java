@@ -152,11 +152,11 @@ public class Async<T> implements Supplier<Promise<T>>{
 			yield.accept((Promise<Object>)promise);
 			
 			if (promise.isErrored()) {
-				if (RuntimeException.class.isAssignableFrom(exception.getClass())) {
-					throw (RuntimeException)exception;
+				if (AsyncException.class.isAssignableFrom(exception.getClass())) {
+					throw (AsyncException)exception;
 				}
 				else {
-					throw new UncheckedException(exception);
+					throw new AsyncException(exception);
 				}
 			}
 			else if (promise.isResolved()) {

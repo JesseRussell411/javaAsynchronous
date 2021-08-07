@@ -1,8 +1,10 @@
 package testDrive;
 import java.util.Random;
+import java.util.function.Consumer;
 
 import asynchronous.*;
 import asynchronous.asyncAwait.*;
+import exceptionsPlus.UncheckedException;
 
 public class Driver {
 	public static void main(String[] args) throws InterruptedException{
@@ -174,27 +176,39 @@ public class Driver {
 		// A big mess that I call example 3:
 		// ---------------------------------------------------
 		final var get8 = new Async<Integer>(await -> {
-			int num = await.apply(new Promise<Integer>(resolve -> new Thread(() -> {
+			int num = await.apply(new Promise<Integer>((resolve, reject) -> new Thread(() -> {
 					try {
 						Thread.sleep(1000);
 					}
 					catch(InterruptedException e) {}
 					
 					resolve.accept(8);
-				}, "get8").start()));
+				}, "get8").start()).then((Consumer<Integer>)(r -> {System.out.println("what!!!!!"); throw new IndexOutOfBoundsException();})).error(e -> {System.out.println(e);}));
 			
 			return num;
 		}, "get8");
 		
-		final var add2 = new Async<Integer>(await -> {
+		final var get2plus8 = new Async<Integer>(await -> {
 			var Promise8 = get8.get();
 			return await.apply(Promise8) + 2;
 		}, "add2");
 		
 		final var getHello10 = new Async<String>(await -> {
 			var PromiseForHello = getHello.get();
-			var PromiseFor10 = add2.get();
-			return await.apply(PromiseForHello) + await.apply(PromiseFor10); 
+			var PromiseFor10 = get2plus8.get();
+			try {
+				return await.apply(PromiseForHello) + await.apply(PromiseFor10);
+			}
+			catch(AsyncException ae) {
+				var e = ae.getOriginal();
+				if (e instanceof InterruptedException) {
+					System.out.println("SOMETHING WENT WRONG! interrupted");
+				}
+				else if (e instanceof IndexOutOfBoundsException) {
+					System.out.println("Index out of bounds??");
+				}
+				return "SOMETHINGWENTWRONG";
+			}
 		}, "getHello10");
 		
 		final var getHelloAnd = new Async1<Double, String>((await, addition) -> {

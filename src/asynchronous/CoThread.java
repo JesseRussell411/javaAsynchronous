@@ -50,8 +50,9 @@ public class CoThread<T> implements AutoCloseable {
 	
 	
 	private static class CoThreadHolder<T> implements AutoCloseable{
-		private boolean threadPaused = false;
 		private Promise<Result<T>> promise = null;
+		private boolean yieldInterrupted = false;
+		private boolean threadPaused = false;
 		private boolean complete = false;
 		private boolean errored = false;
 		private boolean started = false;
@@ -120,7 +121,9 @@ public class CoThread<T> implements AutoCloseable {
 					try {
 						routine.accept(r -> this.yield(r));
 					}
-					catch(YieldInterruptedException e) {}
+					catch(YieldInterruptedException e) {
+						yieldInterrupted = true;
+					}
 					catch(RuntimeException e) {
 						errored = true;
 						exception = e;

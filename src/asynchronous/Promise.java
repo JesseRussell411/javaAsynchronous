@@ -102,9 +102,15 @@ public class Promise<T> {
     // | Then and Error: |
     // o-----------------o
     public synchronized <R> Promise<R> then(Function<T, R> func) {
-    	final var prom = new Promise<R>(resolve -> {
+    	final var prom = new Promise<R>((resolve, reject) -> {
     		thenQueue.add(r -> {
-    			resolve.accept(func.apply(r));
+    			try {
+	    			final var r2 = func.apply(r);
+	    			resolve.accept(r2);
+    			}
+    			catch(Exception e) {
+    				reject.accept(e);
+    			}
     		});
     	});
     	thenPromiseQueue.add(prom);
@@ -120,9 +126,14 @@ public class Promise<T> {
     public synchronized <R> Promise<R> asyncThen(Function<T, Promise<R>> func) {
     	final var prom = new Promise<R>((resolve, reject) -> {
     		thenQueue.add(r -> {
-    			final var funcProm = func.apply(r);
-    			funcProm.then(r2 -> {resolve.accept(r2);});
-    			funcProm.error(e -> {reject.accept(e);});
+    			try {
+	    			final var funcProm = func.apply(r);
+	    			funcProm.then(r2 -> {resolve.accept(r2);});
+	    			funcProm.error(e -> {reject.accept(e);});
+    			}
+    			catch (Exception e) {
+    				reject.accept(e);
+    			}
     		});
     	});
     	thenPromiseQueue.add(prom);
@@ -135,26 +146,49 @@ public class Promise<T> {
     	return prom;
     }
     
-    public synchronized <R> Promise<R> error(Function<Exception, R> func) {
-    	final var prom = new Promise<R>(resolve -> {
+    public synchronized Promise<T> error(Consumer<Exception> func) {
+    	final var prom = new Promise<T>((resolve, reject) -> {
     		errorQueue.add(e -> {
-    			resolve.accept(func.apply(e));
+    			try {
+    				func.accept(e);
+    				reject.accept(e);
+    			}
+    			catch(Exception e2) {
+    				reject.accept(e2);
+    			}
+    		});
+    		
+    		thenQueue.add(r -> {
+    			resolve.accept(r);
     		});
     	});
     	if (errored) {
     		runErrorQueue();
     	}
+    	if (resolved) {
+    		runThenQueue();
+    	}
     	return prom;
     }
     
     public synchronized <R> Promise<R> asyncError(Function<Exception, Promise<R>> func) {
-    	final var prom = new Promise<R>(resolve -> {
+    	final var prom = new Promise<R>((resolve, reject) -> {
     		errorQueue.add(e -> {
-    			func.apply(e).then(r -> {resolve.accept(r);});
+    			try {
+	    			final var prom2 = func.apply(e);
+	    			prom2.then(r -> {resolve.accept(r);});
+	    			prom2.error(e2 -> {reject.accept(e2);});
+    			}
+    			catch(Exception e2) {
+    				reject.accept(e2);
+    			}
     		});
     	});
     	if (errored) {
     		runErrorQueue();
+    	}
+    	if (resolved) {
+    		runThenQueue();
     	}
     	return prom;
     }
@@ -180,29 +214,15 @@ public class Promise<T> {
     }
     
     public synchronized <R> Promise<R> asyncThen(Supplier<Promise<R>> func) {
-        return asyncThen((r) -> {
+        return asyncThen(r -> {
             return func.get();
         });
     }
     
-    public synchronized Promise<Exception> error(Consumer<Exception> func) {
-        return error((e) -> {
-            func.accept(e);
-            return exception;
-        });
-    }
-    
-    public synchronized Promise<Exception> error(Runnable func) {
-        return error((e) -> {
-            func.run();
-            return exception;
-        });
-    }
-    
-    public synchronized <R> Promise<R> error(Supplier<R> func) {
-        return error((e) -> {
-            return func.get();
-        });
+    public synchronized Promise<T> error(Runnable func) {
+    	return error(e -> {
+    		func.run();
+    	});
     }
     
     public synchronized <R> Promise<R> asyncError(Supplier<Promise<R>> func) {
