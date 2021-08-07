@@ -15,11 +15,11 @@ import exceptionsPlus.UncheckedException;
  *
  * @param <T>
  */
-public class Async<T> implements Supplier<Promise<T>>{
+public class Async<T> implements Supplier<Promise<T>> {
 	private static final long LISTENER_WAIT_MILLISECONDS = 1;
 	private static final int LISTENER_WAIT_NANOSECONDS = 0;
-	private static AtomicInteger incompleteInstanceCount = new AtomicInteger(0);
-	private static Queue<Async<Object>.Instance> executionQueue = new ConcurrentLinkedQueue<>();
+	private static AtomicInteger runningInstanceCount = new AtomicInteger(0);
+	private static Queue<Async<Object>.CalledInstance> executionQueue = new ConcurrentLinkedQueue<>();
 	private Function<Await, T> func;
 	private String name = null;
 	
@@ -34,7 +34,7 @@ public class Async<T> implements Supplier<Promise<T>>{
 	}
 	
 	public Promise<T> get(){
-		var inst = new Instance(func, this);
+		var inst = new CalledInstance();
 		return inst.execute();
 	}
 	
@@ -45,18 +45,20 @@ public class Async<T> implements Supplier<Promise<T>>{
 	public static void execute() throws InterruptedException{
 		// execution loop
 		while(true) {
-			Async<Object>.Instance instancePolled;
+			Async<Object>.CalledInstance instancePolled;
 			while((instancePolled = executionQueue.poll()) != null) {
-				final Async<Object>.Instance instance = instancePolled;
+				final Async<Object>.CalledInstance instance = instancePolled;
 				
 				// run instance until next yield or completion
 				CoThread.Result<Promise<Object>> awaitResult = null;
 				Exception exception = null;
 				
 				try {
+					// running instance...
 					awaitResult = instance.coThread.await();
 				}
 				catch (Exception e) {
+					// an exception was thrown by the instance.
 					exception = e;
 				}
 				
@@ -68,8 +70,8 @@ public class Async<T> implements Supplier<Promise<T>>{
 				else if (awaitResult != null) {
 					// yield:
 					
-					// add logic to promise
-					// put instance back on queue
+					// awaitResult contains a promise returned by yield
+					// This promise needs to add the instance back onto the execution queue when it completes.
 					awaitResult.value.then(() -> {
 						executionQueue.add(instance);
 					});
@@ -79,12 +81,15 @@ public class Async<T> implements Supplier<Promise<T>>{
 				}
 				else {
 					// completion:
+					
+					// The instance has run to the end of it's function. It has completed execution.
+					// it should now contain the result of the execution in it's "result" field.
 					instance.resolve.accept(instance.result);
 				}
 			}
 			
 			// executionQueue appears to be empty, check if there's still incomplete async.instances
-			if (incompleteInstanceCount.get() > 0) {
+			if (runningInstanceCount.get() > 0) {
 				// if so, wait for some time, then start the loop over again.
 				Thread.sleep(LISTENER_WAIT_MILLISECONDS, LISTENER_WAIT_NANOSECONDS);
 			}
@@ -96,73 +101,81 @@ public class Async<T> implements Supplier<Promise<T>>{
 	}
 	
 	
-	// the following code is still jank
 	
 	/**
 	 * Call to an async function.
 	 * @author jesse
 	 *
 	 */
-	class Instance{
-		CoThread<Promise<Object>> coThread;
-		T result;
+	private class CalledInstance {
+		final CoThread<Promise<Object>> coThread;
+		T result = null;
 		Promise<T> promise;
 		Consumer<T> resolve;
 		Consumer<Exception> reject;
-		Async<T> parent;
 		
-		public boolean notComplete() { return coThread.notComplete(); }
-		public boolean isComplete() { return coThread.isComplete(); }
-		
-		Instance(Function<Await, T> func, Async<T> parent){
-			this.parent = parent;
-			
+		CalledInstance() {
 			coThread = new CoThread<>(yield -> {
-				result = func.apply(new Await(yield, (Async<Object>.Instance)this));
-			}, parent.getName());
+				result = func.apply(new Await(yield));
+			}, name);
 		}
 		
-		public Promise<T> execute(){
+		Promise<T> execute(){
+			// start coThread
 			coThread.start();
-			incompleteInstanceCount.incrementAndGet();
+			
+			// increments running instance count
+			runningInstanceCount.incrementAndGet();
+			
+			// make a new promise and extract resolve and reject methods
 			promise = new Promise<T>((resolve, reject) -> {this.resolve = resolve; this.reject = reject;});
-			promise.then(() -> {incompleteInstanceCount.decrementAndGet();});
-			promise.error(() -> {incompleteInstanceCount.decrementAndGet();});
-			executionQueue.add((Async<Object>.Instance)this);
+			
+			// add callbacks to promise that decrements running instance count when the call completes.
+			promise.then(() -> {runningInstanceCount.decrementAndGet();});
+			promise.error(() -> {runningInstanceCount.decrementAndGet();});
+			
+			// get in line
+			executionQueue.add((Async<Object>.CalledInstance)this);
+			
+			// This promise will resolve when to instance completes successfully, and reject when an error occurs
 			return promise;
 		}
 	}
 	
 	// Await functional class for awaiting promises in an async functional class.
-	public static class Await{
-		private Consumer<Promise<Object>> yield;
-		private Object result;
-		private Exception exception;
-		private Async<Object>.Instance instance;
+	public static class Await {
+		private final Consumer<Promise<Object>> yield;
 		
-		Await(Consumer<Promise<Object>> yield, Async<Object>.Instance isntance) {
-			this.instance = isntance;
+		private Await(Consumer<Promise<Object>> yield) {
 			this.yield = yield;
 		}
 		
-		// Awaits the given promise, returning it's result when it's resolved.
-		public <E> E apply(Promise<E> promise) throws UncheckedException, RuntimeException {
-			promise.then(r -> {result = r;});
-			promise.error(e -> {exception = e;});
+		/**
+		 * Awaits the given promise, returning it's result when it's resolved.
+		 * @param <E> The type of the promise.
+		 * @param promise
+		 * @return result of promise
+		 * @throws AsyncException Wrapper around all Exceptions checked and un-checked. Will contain whatever exception was thrown.
+		 * This is the only exception thrown by await.
+		 */
+		public <E> E apply(Promise<E> promise) throws AsyncException {
+			// yield to calling thread
 			yield.accept((Promise<Object>)promise);
 			
+			// at this point yield has stopped blocking which should mean that the promise is complete.
 			if (promise.isErrored()) {
-				if (AsyncException.class.isAssignableFrom(exception.getClass())) {
-					throw (AsyncException)exception;
+				if (promise.getException() instanceof AsyncException) {
+					throw (AsyncException)promise.getException();
 				}
 				else {
-					throw new AsyncException(exception);
+					throw new AsyncException(promise.getException());
 				}
 			}
 			else if (promise.isResolved()) {
-				return (E)result;
+				return (E)promise.getResult();
 			}
 			else {
+				// if this block runs, something is wrong. Most likely with Async.execute().
 				return null;
 			}
 		}

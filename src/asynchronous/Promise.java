@@ -10,16 +10,18 @@ import exceptionsPlus.UncheckedException;
  */
 public class Promise<T> {
     private Queue<Consumer<T>> thenQueue = new LinkedList<>();
-    private Queue<Promise<?>> thenPromiseQueue = new LinkedList<>();
+    private Queue<Promise<?>> thenPromises = new LinkedList<>();
     private Queue<Consumer<Exception>> errorQueue = new LinkedList<>();
     private boolean resolved = false;
     private boolean errored = false;
-    private T result;
-    private Exception exception;
+    private T result = null;
+    private Exception exception = null;
     
     public boolean isResolved() { return resolved; }
     public boolean isErrored() { return errored; }
+    public boolean isComplete() { return resolved || errored; }
     public T getResult() { return result; }
+    public Exception getException() { return exception; }
     
     Promise(){}
     
@@ -46,7 +48,7 @@ public class Promise<T> {
     	
     	// error out all then's
     	Promise<?> prom;
-    	while((prom = thenPromiseQueue.poll()) != null) {
+    	while((prom = thenPromises.poll()) != null) {
     		prom.reject(exception);
     	}
     	
@@ -113,7 +115,7 @@ public class Promise<T> {
     			}
     		});
     	});
-    	thenPromiseQueue.add(prom);
+    	thenPromises.add(prom);
     	if (errored) {
     		runErrorQueue();
     	}
@@ -136,7 +138,7 @@ public class Promise<T> {
     			}
     		});
     	});
-    	thenPromiseQueue.add(prom);
+    	thenPromises.add(prom);
     	if (errored) {
     		runErrorQueue();
     	}

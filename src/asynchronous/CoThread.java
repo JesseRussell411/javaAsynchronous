@@ -14,6 +14,7 @@ public class CoThread<T> implements AutoCloseable {
 	public boolean isComplete() { return threadHolder.isComplete(); }
 	public boolean isErrored() { return threadHolder.isErrored(); }
 	public boolean started() { return threadHolder.started(); }
+	public boolean closed() { return threadHolder.closed(); }
 	public String getName() { return threadHolder.getName(); }
 	
 	public CoThread(Consumer<Consumer<T>> routine, String name) { threadHolder = new CoThreadHolder<>(routine, name); }
@@ -29,7 +30,7 @@ public class CoThread<T> implements AutoCloseable {
 	
 	@Override
 	public void finalize() throws Exception {
-		threadHolder.closeWithoutWait();
+		threadHolder.closeForGarbageCollector();
 	}
 	
 	/**
@@ -51,11 +52,11 @@ public class CoThread<T> implements AutoCloseable {
 	
 	private static class CoThreadHolder<T> implements AutoCloseable{
 		private Promise<Result<T>> promise = null;
-		private boolean yieldInterrupted = false;
 		private boolean threadPaused = false;
 		private boolean complete = false;
 		private boolean errored = false;
 		private boolean started = false;
+		private boolean closed = false;
 		private Thread thread = null;
 		private String name = null;
 		private T result = null;
@@ -90,6 +91,7 @@ public class CoThread<T> implements AutoCloseable {
 		public boolean isComplete() { return complete; }
 		public boolean isErrored() { return errored; }
 		public boolean started() { return started; }
+		public boolean closed() { return closed; }
 		
 		public CoThreadHolder(Consumer<Consumer<T>> routine, String name) {
 			if (routine == null) { throw new NullPointerException(); }
@@ -121,9 +123,7 @@ public class CoThread<T> implements AutoCloseable {
 					try {
 						routine.accept(r -> this.yield(r));
 					}
-					catch(YieldInterruptedException e) {
-						yieldInterrupted = true;
-					}
+					catch(YieldInterruptedException e) {}
 					catch(RuntimeException e) {
 						errored = true;
 						exception = e;
@@ -193,7 +193,7 @@ public class CoThread<T> implements AutoCloseable {
 			return promise;
 		}
 		
-		public synchronized Result<T> await() throws UncheckedException {
+		public synchronized Result<T> await() throws RuntimeException, UncheckedInterruptedException {
 			if (!started()) { throw new CoThreadNotStartedException(); }
 			promise = null;
 			
@@ -228,11 +228,12 @@ public class CoThread<T> implements AutoCloseable {
 				while(!complete) {
 					wait();
 				}
+				closed = true;
 			}
 		}
 		
 		// for garbage collector
-		void closeWithoutWait() {
+		void closeForGarbageCollector() {
 			thread.interrupt();
 		}
 	}
