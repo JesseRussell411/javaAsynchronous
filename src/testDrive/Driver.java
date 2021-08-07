@@ -43,21 +43,21 @@ public class Driver {
 		
 		// in javascript:
 		//
-		// const fetchStuffFromServer = async (url) => {
-		//     return await httpFetchFunction(url);
+		// const fetchStuffFromServer = async (id) => {
+		//     return await httpFetchFunction("http://stuffServer/stuff/" + id);
 		// }
 		//
 		// ... later, in an async function:
-		// const stuff = await fetchStuffFromServer("http://stuffServer/stuff");
+		// const stuff = await fetchStuffFromServer(42);
 		
 		// in java:
 		//
-		// final var fetchStuffFromServer = new Async1<String, Responce>((await, url) -> {
-		//     return await.apply(httpFetchFunction(url));
+		// final var fetchStuffFromServer = new Async1<Integer, Responce>((await, id) -> {
+		//     return await.apply(httpFetchFunction("http://stuffServer/stuff/" + id));
 		// }
 		//
 		// ... later, in an Async functional class:
-		// final var stuff = await.apply(fetchStuffFromServer.apply("http://stuffServer/stuff"));
+		// final var stuff = await.apply(fetchStuffFromServer.apply(42));
 		//
 		// ... even later, probably at the end of main:
 		// Async.execute();
@@ -76,7 +76,12 @@ public class Driver {
 		// in java:
 		// somePromise.then(r -> { System.out.println(r); });
 		
+		// And yes I made my own promise class because, well, completableFuture looked real confusing so naturally I would rather create my own than learn how to use the one that already exists.
+		// The promise class acts almost exactly like the one in javascript of course.
 		
+		
+		// over complicated hello world example:
+		// ------------------------------------
 		final var getHello = new Async<String>(await -> {
 			// make a promise that will eventually resolve to "hello"
 			final var helloPromise = new Promise<String>(resolve -> 
@@ -148,12 +153,15 @@ public class Driver {
 		
 		// Error handling example/test:
 		// ---------------------------
-		final var sleepThrow = new AsyncVoid(await -> {
+		
+		// Errors propagate up just like in javascript, but they do have to be wrapped in AsyncException (a RuntimeException)
+		// because checked exceptions get really annoying when you're using lambdas.
+		final var throwSomething = new AsyncVoid(await -> {
 			throw new NullPointerException("This pointer doesn't exist. Oh, wait that's void! sorry");
 		});
 		
-		final var runSleepThrowAsIfItDoesntThrow = new AsyncVoid(await -> {
-			await.apply(sleepThrow.get());
+		final var runThrowSomethingAsIfItDoesntThrowAnything = new AsyncVoid(await -> {
+			await.apply(throwSomething.get());
 		});
 		
 		final var main2 = new AsyncVoid(await -> {
@@ -161,10 +169,13 @@ public class Driver {
 			System.out.println("Error handling test...");
 			
 			try {
-				await.apply(runSleepThrowAsIfItDoesntThrow.get());
+				await.apply(runThrowSomethingAsIfItDoesntThrowAnything.get());
 			}
-			catch(NullPointerException e) {
-				System.out.println("If this text is displayed. Error handling works.");
+			catch(AsyncException ae) {
+				var e = ae.getOriginal();
+				if (e instanceof NullPointerException) {
+					System.out.println("If this text is displayed. Error handling works.");
+				}
 			}
 			
 		});
