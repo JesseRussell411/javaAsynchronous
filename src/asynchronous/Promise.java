@@ -29,10 +29,16 @@ public class Promise<T> {
     
     Promise(){}
     
+    /**
+     * @param Initializer function that consumes resolve and reject functions. Use them to resolve or reject the promise respectively.
+     */
     public Promise(BiConsumer<Consumer<T>, Consumer<Exception>> initializer) {
         initializer.accept((r) -> resolve(r), (e) -> reject(e));
     }
 
+    /**
+     * @param Initializer function that consumes a resolve method. Use it to resolve the promise.
+     */
     public Promise(Consumer<Consumer<T>> initializer){
         initializer.accept((t) -> resolve(t));
     }
@@ -43,6 +49,7 @@ public class Promise<T> {
     		func.accept(input);
     	}
     }
+    
     private synchronized void runRunnableQueue(Queue<Runnable> queue) {
     	Runnable func;
     	while((func = queue.poll()) != null) {

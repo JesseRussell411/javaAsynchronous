@@ -9,7 +9,7 @@ import exceptionsPlus.UncheckedException;
  */
 public class AsyncException extends UncheckedException{
 	private static final long serialVersionUID = 1L;
-	AsyncException(Exception original) {
+	public AsyncException(Exception original) {
 		super(original);
 	}
 }

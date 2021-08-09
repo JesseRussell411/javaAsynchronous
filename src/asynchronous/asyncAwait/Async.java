@@ -8,6 +8,7 @@ import java.util.function.*;
 import asynchronous.CoThread;
 import asynchronous.Deferred;
 import asynchronous.Promise;
+import asynchronous.Timing;
 
 /**
  * Asyncronouse function used for asyncronouse programming. Call Async.execute at the end of the main method to run called async functions.
@@ -109,6 +110,7 @@ public class Async<T> implements Supplier<Promise<T>> {
 		private final CoThread<Promise<?>> coThread;
 		private T result = null;
 		private Deferred<T> deferred;
+		
 		public void resolve(T result) {
 			deferred.resolve(result);
 		}
@@ -120,7 +122,6 @@ public class Async<T> implements Supplier<Promise<T>> {
 		}
 		public T getResult() { return result; }
 		public CoThread.Result<Promise<?>> await() throws InterruptedException { return coThread.await(); }
-		
 		
 		CalledInstance() {
 			coThread = new CoThread<>(yield -> {
@@ -187,6 +188,14 @@ public class Async<T> implements Supplier<Promise<T>> {
 				System.err.println("There is something wrong with Async.execute (most likely). After yielding in Await.apply, the promise is still not complete.");
 				return null;
 			}
+		}
+		
+		// utils:
+		public void sleep(long milliseconds, int nanoseconds) {
+			apply(Timing.setTimeout(() -> null, milliseconds, nanoseconds));
+		}
+		public void sleep(long milliseconds) {
+			apply(Timing.setTimeout(() -> null, milliseconds));
 		}
 	}
 }

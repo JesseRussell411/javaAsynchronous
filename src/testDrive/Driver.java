@@ -82,55 +82,36 @@ public class Driver {
 		// over complicated hello world example:
 		// ------------------------------------
 		final var getHello = new Async<String>(await -> {
-			// make a promise that will eventually resolve to "hello"
-			final var helloPromise = new Promise<String>(resolve -> 
-				new Thread(() -> {
-					// sleep and be lazy
-					try {Thread.sleep(1000);} catch(InterruptedException e) {}
-					
-					// get around to returning "hello"
-					resolve.accept("hello");
-				}, "getHello").start());
-					
-			// await that promise and return the result;
-			return await.apply(helloPromise);
+			// sleep for a bit
+			await.sleep(1000);
+			
+			// get around to returning hello
+			return "hello";
 		}, "getHello");
 		
 		final var getSpace = new Async<String>(await -> {
-			// make a promise that will eventually resolve to "hello"
-			final var spacePromise /*insert joke about Elon Musk*/ = new Promise<String>(resolve -> 
-				new Thread(() -> {
-					// sleep and be lazy
-					try {Thread.sleep(100);} catch(InterruptedException e) {}
-					
-					// get around to returning " "
-					resolve.accept(" ");
-				}, "getHello").start());
-					
-			// await that promise and return the result;
-			return await.apply(spacePromise);
+			//sleep for a bit
+			await.sleep(500);
+			
+			// get around to returning a space
+			return " ";
 		}, "getSpace");
 		
-		final var getWorld = new Async<String>(await -> {
-			// make a promise that will eventually resolve to "hello"
-			final var worldPromise = new Promise<String>(resolve -> 
-				new Thread(() -> {
-					// sleep and be lazy
-					try {Thread.sleep(1000);} catch(InterruptedException e) {}
-					
-					// get around to returning "world"
-					resolve.accept("world");
-				}, "getHello").start());
-					
-			// await that promise and return the result;
-			return await.apply(worldPromise);
+		final var getWorld = new Async<String>(await -> {		
+			// sleep for a bit
+			await.sleep(900);
+			
+			//get around to returning world
+			return "world";
 		}, "getWorld");
 		
 		final var getHelloworld = new Async<String>(await -> {
+			// get the promises from each function
 			final var hello = getHello.get();
 			final var space = getSpace.get();
 			final var world = getWorld.get();
 			
+			// await those promises
 			return await.apply(hello) +
 					await.apply(space) +
 					await.apply(world);
@@ -196,7 +177,7 @@ public class Driver {
 					catch(InterruptedException e) {}
 					
 					resolve.accept(8);
-				}, "get8").start()).then((Consumer<Integer>)(r -> {System.out.println("what!!!!!"); throw new IndexOutOfBoundsException();})).error(e -> {System.out.println(e);}));
+				}, "get8").start()));
 			
 			return num;
 		}, "get8");
@@ -234,23 +215,13 @@ public class Driver {
 		
 		
 		final var slowAdd = new Async2<Double, Double, Double>((await, d1, d2) -> {
-			return await.apply(new Promise<Double>(resolve -> new Thread(() -> {
-				try {
-					Thread.sleep(7000);
-					resolve.accept(d1 + d2);
-				}
-				catch (InterruptedException e) {}
-			}).start()));
+			await.sleep(1000);
+			return d1 + d2;
 		}, "slowAdd");
 		
 		final var slowAddSpecific = new Async3<Double, Double, Long, Double>((await, d1, d2, waitTime) -> {
-			return await.apply(new Promise<Double>(resolve -> new Thread(() -> {
-				try {
-					Thread.sleep(waitTime);
-					resolve.accept(d1 + d2);
-				}
-				catch (InterruptedException e) {}
-			}).start()));
+			await.sleep(waitTime);
+			return d1 + d2;
 		}, "slowAddSpecific");
 		
 		
