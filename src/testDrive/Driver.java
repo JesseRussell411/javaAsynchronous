@@ -158,11 +158,11 @@ public class Driver {
 		// because checked exceptions get really annoying when you're using lambdas.
 		final var throwSomething = new AsyncVoid(await -> {
 			throw new NullPointerException("This pointer doesn't exist. Oh, wait that's void! sorry");
-		});
+		}, "throwSomething");
 		
 		final var runThrowSomethingAsIfItDoesntThrowAnything = new AsyncVoid(await -> {
 			await.apply(throwSomething.get());
-		});
+		}, "runThrowSomethingAsIfItDoesntThrowAnything");
 		
 		final var main2 = new AsyncVoid(await -> {
 			
