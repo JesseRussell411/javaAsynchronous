@@ -53,6 +53,9 @@ public class Promise<T> {
     private synchronized void handleThen(){
     	// run then queue
     	runConsumerQueue(thenQueue, result);
+    	
+    	// clear then promises
+    	thenPromises.clear();
     }
     
     private synchronized void handleError() {
