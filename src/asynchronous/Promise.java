@@ -311,7 +311,7 @@ public class Promise<T> {
     	
     	private RejectionOfCompletedPromiseException(Promise<?> promise) {
     		super("reject was called on a promise which had already been " +
-    				(promise.resolved ? "resolve" : "rejected") + ".");
+    				(promise.resolved ? "resolved" : "rejected") + ".");
     		this.promise = promise;
     	}
     }
@@ -322,7 +322,7 @@ public class Promise<T> {
     	
     	private ResolutionOfCompletedPromiseException(Promise<?> promise) {
     		super("resolve was called on a promise which had already been " +
-    				(promise.resolved ? "resolve" : "rejected") + ".");
+    				(promise.resolved ? "resolved" : "rejected") + ".");
     		this.promise = promise;
     	}
     }
