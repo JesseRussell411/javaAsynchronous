@@ -56,6 +56,9 @@ public class Promise<T> {
     	
     	// clear then promises
     	thenPromises.clear();
+    	
+    	// clear the error queue
+    	errorQueue.clear();
     }
     
     private synchronized void handleError() {
