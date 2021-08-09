@@ -4,17 +4,22 @@ import java.util.function.*;
 public class Deferred<T> {
 	private final Promise<T> promise;
 	
+	private Deferred(Promise<T> promise) {
+		this.promise = promise;
+	}
+	
 	public Deferred(BiConsumer<Consumer<T>, Consumer<Exception>> initializer) {
-		promise = new Promise<T>(initializer);
+		this(new Promise<T>(initializer));
 	}
 
 	public Deferred(Consumer<Consumer<T>> initializer) {
-		promise = new Promise<T>(initializer);
+		this(new Promise<T>(initializer));
 	}
 	
 	public Deferred() {
-		promise = new Promise<T>();
+		this(new Promise<T>());
 	}
+	
 	
 	public Promise<T> getPromise() { return promise; }
 	public boolean isResolved() { return promise.isResolved(); }
@@ -68,4 +73,14 @@ public class Deferred<T> {
     public synchronized <R> Promise<R> complete(Supplier<R> func) { return promise.complete(func); }
     public synchronized Promise<Object> complete(Runnable func) { return promise.complete(func); }
     // END Then and Error
+    
+    // o-------------------o
+    // | Static Factories: |
+    // o-------------------o
+    public static <T> Deferred<T> threadInit(BiConsumer<Consumer<T>, Consumer<Exception>> initializer){
+    	return new Deferred<T>(Promise.threadInit(initializer));
+    }
+    public static <T> Deferred<T> threadInit(Consumer<Consumer<T>> initializer){
+    	return new Deferred<T>(Promise.threadInit(initializer));
+    }
 }

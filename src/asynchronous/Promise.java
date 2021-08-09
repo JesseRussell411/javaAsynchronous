@@ -21,15 +21,31 @@ public class Promise<T> {
     private T result = null;
     private Exception exception = null;
     
-    public boolean isResolved() { return resolved; }
-    public boolean isRejected() { return rejected; }
+    // Whether the promise has been completed (resolved or rejected);
     public boolean isComplete() { return resolved || rejected; }
+    // Whether the promise has been resolved.
+    public boolean isResolved() { return resolved; }
+    // Whether the promise has been rejected.
+    public boolean isRejected() { return rejected; }
+    
+    /**
+     *  Returns result of the promise. If the promise has not been resolved: returns null.
+     *  NOTE: even if the promise has been resolved this will still return null if the result was null. To check if the promise has resolved use "isResolved()".
+     */
     public T getResult() { return result; }
+    
+    /**
+     * Returns the exception with which the promise was rejected. If the promise has not been rejected returns null.
+     * NOTE: even if the promise has been rejected this will still return null if the exception was null. To check if the promise has been rejected use "isRejected()".
+     * @return
+     */
     public Exception getException() { return exception; }
     
     Promise(){}
     
     /**
+     * Runs the initializer to create a promise. NOTE: The initializer will block the calling function as the initializer is called in the same thread.
+     * To run the initializer in a new thread use "Promise.threadInit" instead or start a new thread inside the initializer.
      * @param Initializer function that consumes resolve and reject functions. Use them to resolve or reject the promise respectively.
      */
     public Promise(BiConsumer<Consumer<T>, Consumer<Exception>> initializer) {
@@ -37,6 +53,8 @@ public class Promise<T> {
     }
 
     /**
+     * Runs the initializer to create a promise. NOTE: The initializer will block the calling function as the initializer is called in the same thread.
+     * To run the initializer in a new thread use "Promise.threadInit" instead or start a new thread inside the initializer.
      * @param Initializer function that consumes a resolve method. Use it to resolve the promise.
      */
     public Promise(Consumer<Consumer<T>> initializer){
@@ -337,4 +355,37 @@ public class Promise<T> {
     	}
     }
     // END Sub Classes
+    
+    // o-------------------o
+    // | Static Factories: |
+    // o-------------------o
+    /**
+     * Creates a new promise by running the initializer in a new thread.
+     * @param Initializer function that consumes resolve and reject functions. Use them to resolve or reject the promise respectively.
+     */
+    public static <T> Promise<T> threadInit(BiConsumer<Consumer<T>, Consumer<Exception>> initializer){
+    	return new Promise<T>((resolve, reject) -> new Thread(() -> {
+    		try {
+    			initializer.accept(resolve, reject);
+    		}
+    		catch (Exception e){
+    			reject.accept(e);
+    		}
+    	}).start());
+    }
+    
+    /**
+     * Creates a new promise by running the initializer in a new thread.
+     * @param Initializer function that consumes a resolve method. Use it to resolve the promise.
+     */
+    public static <T> Promise<T> threadInit(Consumer<Consumer<T>> initializer){
+    	return new Promise<T>((resolve, reject) -> new Thread(() -> {
+    		try {
+    			initializer.accept(resolve);
+    		}
+    		catch (Exception e){
+    			reject.accept(e);
+    		}
+    	}).start());
+    }
 }

@@ -14,7 +14,7 @@ public class Timing {
 	}
 	
 	public static <T> Promise<T> setTimeout(Supplier<T> func, long sleepForMilliseconds, int sleepForNanoseconds) {
-		return new Promise<T>((resolve, reject) -> new Thread(() -> {
+		return Promise.threadInit((resolve, reject) -> {
 			try {
 				Thread.sleep(sleepForMilliseconds, sleepForNanoseconds);
 				resolve.accept(func.get());
@@ -22,7 +22,7 @@ public class Timing {
 			catch(Exception e) {
 				reject.accept(e);
 			}
-		}).start());
+		});
 	}
 	
 	public static void setTimeout(Runnable func, long sleepForMilliseconds) {

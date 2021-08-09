@@ -147,7 +147,6 @@ public class Driver {
 		final var main2 = new AsyncVoid(await -> {
 			
 			System.out.println("Error handling test...");
-			
 			try {
 				await.apply(runThrowSomethingAsIfItDoesntThrowAnything.get());
 			}
