@@ -4,8 +4,8 @@ import functionPlus.*;
 import asynchronous.Promise;
 
 public class Async3<T1, T2, T3, R> implements TriFunction<T1, T2, T3, Promise<R>>{
-	private Async<R> async;
-	private Object[] args = new Object[3];
+	private final Async<R> async;
+	private final Object[] args = new Object[3];
 	
 	public Async3(QuadFunction<Async.Await, T1, T2, T3, R> func, String name) {
 		async = new Async<R>(

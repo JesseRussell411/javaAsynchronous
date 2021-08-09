@@ -4,7 +4,7 @@ import functionPlus.*;
 import asynchronous.Promise;
 
 public class AsyncVoid3<T1, T2, T3> implements TriFunction<T1, T2, T3, Promise<Object>>{
-	private Async3<T1, T2, T3, Object> async;
+	private final Async3<T1, T2, T3, Object> async;
 	
 	public AsyncVoid3(QuadConsumer<Async.Await, T1, T2, T3> func, String name) {
 		async = new Async3<T1, T2, T3, Object>(

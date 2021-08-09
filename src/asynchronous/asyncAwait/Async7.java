@@ -4,8 +4,8 @@ import functionPlus.*;
 import asynchronous.Promise;
 
 public class Async7<T1, T2, T3, T4, T5, T6, T7, R> implements HeptaFunction<T1, T2, T3, T4, T5, T6, T7, Promise<R>>{
-	private Async<R> async;
-	private Object[] args = new Object[7];
+	private final Async<R> async;
+	private final Object[] args = new Object[7];
 	
 	public Async7(OctoFunction<Async.Await, T1, T2, T3, T4, T5, T6, T7, R> func, String name) {
 		async = new Async<R>(

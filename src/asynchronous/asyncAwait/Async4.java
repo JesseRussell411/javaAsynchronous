@@ -4,8 +4,8 @@ import functionPlus.*;
 import asynchronous.Promise;
 
 public class Async4<T1, T2, T3, T4, R> implements QuadFunction<T1, T2, T3, T4, Promise<R>>{
-	private Async<R> async;
-	private Object[] args = new Object[4];
+	private final Async<R> async;
+	private final Object[] args = new Object[4];
 	
 	public Async4(PentaFunction<Async.Await, T1, T2, T3, T4, R> func, String name) {
 		async = new Async<R>(

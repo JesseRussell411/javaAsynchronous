@@ -4,7 +4,7 @@ import functionPlus.*;
 import asynchronous.Promise;
 
 public class AsyncVoid4<T1, T2, T3, T4> implements QuadFunction<T1, T2, T3, T4, Promise<Object>>{
-	private Async4<T1, T2, T3, T4, Object> async;
+	private final Async4<T1, T2, T3, T4, Object> async;
 	
 	public AsyncVoid4(PentaConsumer<Async.Await, T1, T2, T3, T4> func, String name) {
 		async = new Async4<T1, T2, T3, T4, Object>(

@@ -47,9 +47,11 @@ public class Deferred<T> {
 		}
 	}
 	
-	// o-----------------o
-    // | Then and Error: |
-    // o-----------------o
+	public T await() throws InterruptedException { return promise.await(); }
+	
+	// o----------------------------o
+    // | Then, Error, and Complete: |
+    // o----------------------------o
 	public synchronized <R> Promise<R> asyncThen(Function<T, Promise<R>> func) { return promise.asyncThen(func); }
 	public synchronized <R> Promise<R> asyncThen(Supplier<Promise<R>> func) { return promise.asyncThen(func); }
     public synchronized <R> Promise<R> then(Function<T, R> func) { return promise.then(func); }
@@ -61,5 +63,9 @@ public class Deferred<T> {
     public synchronized <R> Promise<R> asyncError(Supplier<Promise<R>> func) { return promise.asyncError(func); }    
     public synchronized Promise<T> error(Consumer<Exception> func) { return promise.error(func); }
     public synchronized Promise<T> error(Runnable func) { return promise.error(func); }
+    
+    public synchronized <R> Promise<R> asyncComplete(Supplier<Promise<R>> func) { return promise.asyncComplete(func); }
+    public synchronized <R> Promise<R> complete(Supplier<R> func) { return promise.complete(func); }
+    public synchronized Promise<Object> complete(Runnable func) { return promise.complete(func); }
     // END Then and Error
 }

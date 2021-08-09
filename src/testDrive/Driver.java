@@ -1,10 +1,9 @@
 package testDrive;
 import java.util.Random;
-import java.util.function.Consumer;
+import java.util.function.*;
 
 import asynchronous.*;
 import asynchronous.asyncAwait.*;
-import exceptionsPlus.UncheckedException;
 
 public class Driver {
 	public static void main(String[] args) throws InterruptedException{
@@ -87,7 +86,7 @@ public class Driver {
 			final var helloPromise = new Promise<String>(resolve -> 
 				new Thread(() -> {
 					// sleep and be lazy
-					try {Thread.sleep(4000);} catch(InterruptedException e) {}
+					try {Thread.sleep(1000);} catch(InterruptedException e) {}
 					
 					// get around to returning "hello"
 					resolve.accept("hello");
@@ -102,7 +101,7 @@ public class Driver {
 			final var spacePromise /*insert joke about Elon Musk*/ = new Promise<String>(resolve -> 
 				new Thread(() -> {
 					// sleep and be lazy
-					try {Thread.sleep(4000);} catch(InterruptedException e) {}
+					try {Thread.sleep(100);} catch(InterruptedException e) {}
 					
 					// get around to returning " "
 					resolve.accept(" ");
@@ -117,7 +116,7 @@ public class Driver {
 			final var worldPromise = new Promise<String>(resolve -> 
 				new Thread(() -> {
 					// sleep and be lazy
-					try {Thread.sleep(4000);} catch(InterruptedException e) {}
+					try {Thread.sleep(1000);} catch(InterruptedException e) {}
 					
 					// get around to returning "world"
 					resolve.accept("world");
@@ -157,7 +156,7 @@ public class Driver {
 		// Errors propagate up just like in javascript, but they do have to be wrapped in AsyncException (a RuntimeException)
 		// because checked exceptions get really annoying when you're using lambdas.
 		final var throwSomething = new AsyncVoid(await -> {
-			throw new NullPointerException("This pointer doesn't exist. Oh, wait that's void! sorry");
+			throw new NullPointerException("This pointer doesn't exist. Oh, wait that means void! sorry");
 		}, "throwSomething");
 		
 		final var runThrowSomethingAsIfItDoesntThrowAnything = new AsyncVoid(await -> {
@@ -173,6 +172,9 @@ public class Driver {
 			}
 			catch(AsyncException ae) {
 				var e = ae.getOriginal();
+				if (e instanceof IndexOutOfBoundsException) {
+					System.out.println("If this text is displayed. Error handing is confused...");
+				}
 				if (e instanceof NullPointerException) {
 					System.out.println("If this text is displayed. Error handling works.");
 				}

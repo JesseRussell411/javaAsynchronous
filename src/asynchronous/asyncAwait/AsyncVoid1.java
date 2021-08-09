@@ -4,7 +4,7 @@ import java.util.function.*;
 import asynchronous.Promise;
 
 public class AsyncVoid1<T1> implements Function<T1, Promise<Object>>{
-	private Async1<T1, Object> async;
+	private final Async1<T1, Object> async;
 	
 	public AsyncVoid1(BiConsumer<Async.Await, T1> func, String name) {
 		async = new Async1<T1, Object>(

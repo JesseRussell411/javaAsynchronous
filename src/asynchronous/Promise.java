@@ -9,9 +9,13 @@ import exceptionsPlus.UncheckedException;
  * @author jesse
  */
 public class Promise<T> {
+	// queue of functions to run on resolution (like the try block in try/catch)
     private final Queue<Consumer<T>> thenQueue = new LinkedList<>();
     private final Queue<Promise<?>> thenPromises = new LinkedList<>();
+    // queue of functions to run on rejection (like the catch block)
     private final Queue<Consumer<Exception>> errorQueue = new LinkedList<>();
+    // queue of function to run on resolution or rejection (like the finally block)
+    private final Queue<Runnable> completeQueue = new LinkedList<>();
     private boolean resolved = false;
     private boolean rejected = false;
     private T result = null;
@@ -33,26 +37,44 @@ public class Promise<T> {
         initializer.accept((t) -> resolve(t));
     }
     
-    private synchronized void runThenQueue(){
-    	Consumer<T> then;
-    	while((then = thenQueue.poll()) != null) {
-    		then.accept(result);
+    private synchronized <E> void runConsumerQueue(Queue<Consumer<E>> queue, E input) {
+    	Consumer<E> func;
+    	while((func = queue.poll()) != null) {
+    		func.accept(input);
+    	}
+    }
+    private synchronized void runRunnableQueue(Queue<Runnable> queue) {
+    	Runnable func;
+    	while((func = queue.poll()) != null) {
+    		func.run();
     	}
     }
     
-    private synchronized void runErrorQueue() {
-    	Consumer<Exception> error;
-    	while((error = errorQueue.poll()) != null) {
-    		error.accept(exception);
-    	}
+    private synchronized void handleThen(){
+    	// run then queue
+    	runConsumerQueue(thenQueue, result);
+    }
+    
+    private synchronized void handleError() {
+    	// run error queue
+    	runConsumerQueue(errorQueue, exception);
     	
-    	// error out all then's
+    	// reject all then promises
     	Promise<?> prom;
     	while((prom = thenPromises.poll()) != null) {
     		prom.reject(exception);
     	}
-    	
-    	thenQueue.clear();
+    }
+    
+    private synchronized void handleCompletionIfComplete() {
+    	if (rejected) {
+    		handleError();
+    		runRunnableQueue(completeQueue);
+    	}
+    	else if (resolved) {
+    		handleThen();
+    		runRunnableQueue(completeQueue);
+    	}
     }
     
     synchronized void resolve(T result) throws ResolutionOfCompletedPromiseException{
@@ -69,8 +91,8 @@ public class Promise<T> {
         // set resolved
         resolved = true;
         
-        // run the next function (given to us by the then method)
-        runThenQueue();
+        // run then and complete
+        handleCompletionIfComplete();
         
         // notify threads stuck in the await function that the wait is over.
         notifyAll();
@@ -87,8 +109,8 @@ public class Promise<T> {
         // set resolved
         rejected = true;
         
-        // run the next function (given to us by the then method)
-        runErrorQueue();
+        // run error and complete
+        handleCompletionIfComplete();
         
         // notify threads stuck in the await function that the wait is over.
         notifyAll();
@@ -107,9 +129,9 @@ public class Promise<T> {
     	}
     }
 
-    // o-----------------o
-    // | Then and Error: |
-    // o-----------------o
+    // o----------------------------o
+    // | Then, Error, and Complete: |
+    // o----------------------------o
     public synchronized <R> Promise<R> then(Function<T, R> func) {
     	final var prom = new Promise<R>((resolve, reject) -> {
     		thenQueue.add(r -> {
@@ -123,12 +145,9 @@ public class Promise<T> {
     		});
     	});
     	thenPromises.add(prom);
-    	if (rejected) {
-    		runErrorQueue();
-    	}
-    	if (resolved) {
-    		runThenQueue();
-    	}
+    	
+    	handleCompletionIfComplete();
+    	
     	return prom;
     }
     
@@ -146,12 +165,9 @@ public class Promise<T> {
     		});
     	});
     	thenPromises.add(prom);
-    	if (rejected) {
-    		runErrorQueue();
-    	}
-    	if (resolved) {
-    		runThenQueue();
-    	}
+
+    	handleCompletionIfComplete();
+    	
     	return prom;
     }
     
@@ -171,12 +187,9 @@ public class Promise<T> {
     			resolve.accept(r);
     		});
     	});
-    	if (rejected) {
-    		runErrorQueue();
-    	}
-    	if (resolved) {
-    		runThenQueue();
-    	}
+
+    	handleCompletionIfComplete();
+    	
     	return prom;
     }
     
@@ -193,12 +206,46 @@ public class Promise<T> {
     			}
     		});
     	});
-    	if (rejected) {
-    		runErrorQueue();
-    	}
-    	if (resolved) {
-    		runThenQueue();
-    	}
+
+    	handleCompletionIfComplete();
+    	
+    	return prom;
+    }
+    
+    public synchronized <R> Promise<R> complete(Supplier<R> func){
+    	final var prom = new Promise<R>((resolve, reject) -> {
+    		completeQueue.add(() -> {
+    			try {
+	    			final var r = func.get();
+	    			resolve.accept(r);
+    			}
+    			catch(Exception e) {
+    				reject.accept(e);
+    			}
+    		});
+    	});
+    	
+    	handleCompletionIfComplete();
+    	
+    	return prom;
+    }
+    
+    public synchronized <R> Promise<R> asyncComplete(Supplier<Promise<R>> func){
+    	final var prom = new Promise<R>((resolve, reject) -> {
+    		completeQueue.add(() -> {
+    			try {
+	    			final var funcProm = func.get();
+	    			funcProm.then(r2 -> {resolve.accept(r2);});
+	    			funcProm.error(e -> {reject.accept(e);});
+    			}
+    			catch (Exception e) {
+    				reject.accept(e);
+    			}
+    		});
+    	});
+
+    	handleCompletionIfComplete();
+    	
     	return prom;
     }
     
@@ -238,6 +285,13 @@ public class Promise<T> {
         return asyncError((e) -> {
             return func.get();
         });
+    }
+    
+    public synchronized Promise<Object> complete(Runnable func){
+    	return complete(() -> {
+    		func.run();
+    		return null;
+    	});
     }
     // END Then and Error
     

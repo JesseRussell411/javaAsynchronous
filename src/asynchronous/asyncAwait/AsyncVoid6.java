@@ -4,7 +4,7 @@ import functionPlus.*;
 import asynchronous.Promise;
 
 public class AsyncVoid6<T1, T2, T3, T4, T5, T6> implements HexaFunction<T1, T2, T3, T4, T5, T6, Promise<Object>>{
-	private Async6<T1, T2, T3, T4, T5, T6, Object> async;
+	private final Async6<T1, T2, T3, T4, T5, T6, Object> async;
 	
 	public AsyncVoid6(HeptaConsumer<Async.Await, T1, T2, T3, T4, T5, T6> func, String name) {
 		async = new Async6<T1, T2, T3, T4, T5, T6, Object>(

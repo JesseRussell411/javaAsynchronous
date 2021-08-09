@@ -4,7 +4,7 @@ import java.util.function.*;
 import asynchronous.Promise;
 
 public class AsyncVoid implements Supplier<Promise<Object>>{
-	private Async<Object> async;
+	private final Async<Object> async;
 	
 	public AsyncVoid(Consumer<Async.Await> func, String name) {
 		async = new Async<Object>(

@@ -6,8 +6,8 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.*;
 
 import asynchronous.CoThread;
+import asynchronous.Deferred;
 import asynchronous.Promise;
-import exceptionsPlus.UncheckedException;
 
 /**
  * Asyncronouse function used for asyncronouse programming. Call Async.execute at the end of the main method to run called async functions.
@@ -18,15 +18,16 @@ import exceptionsPlus.UncheckedException;
 public class Async<T> implements Supplier<Promise<T>> {
 	private static final long LISTENER_WAIT_MILLISECONDS = 1;
 	private static final int LISTENER_WAIT_NANOSECONDS = 0;
-	private static AtomicInteger runningInstanceCount = new AtomicInteger(0);
-	private static Queue<Async<Object>.CalledInstance> executionQueue = new ConcurrentLinkedQueue<>();
-	private Function<Await, T> func;
-	private String name = null;
+	private static final AtomicInteger runningInstanceCount = new AtomicInteger(0);
+	private static final Queue<Async<Object>.CalledInstance> executionQueue = new ConcurrentLinkedQueue<>();
+	private final Function<Await, T> func;
+	private final String name;
 	
 	public String getName() { return name; }
 	
 	public Async(Function<Await, T> func) {
 		this.func = func;
+		this.name = null;
 	}
 	public Async(Function<Await, T> func, String name) {
 		this.func = func;
@@ -55,7 +56,7 @@ public class Async<T> implements Supplier<Promise<T>> {
 				
 				try {
 					// running instance...
-					awaitResult = instance.coThread.await();
+					awaitResult = instance.await();
 				}
 				catch (Exception e) {
 					// an exception was thrown by the instance.
@@ -65,17 +66,14 @@ public class Async<T> implements Supplier<Promise<T>> {
 				// was it an error, yield, or completion?
 				if (exception != null) {
 					//error:
-					instance.reject.accept(exception);
+					instance.reject(exception);
 				}
 				else if (awaitResult != null) {
 					// yield:
 					
 					// awaitResult contains a promise returned by yield
 					// This promise needs to add the instance back onto the execution queue when it completes.
-					awaitResult.value.then(() -> {
-						executionQueue.add(instance);
-					});
-					awaitResult.value.error(() -> {
+					awaitResult.value.complete(() -> {
 						executionQueue.add(instance);
 					});
 				}
@@ -84,7 +82,7 @@ public class Async<T> implements Supplier<Promise<T>> {
 					
 					// The instance has run to the end of it's function. It has completed execution.
 					// it should now contain the result of the execution in it's "result" field.
-					instance.resolve.accept(instance.result);
+					instance.resolve(instance.getResult());
 				}
 			}
 			
@@ -108,11 +106,18 @@ public class Async<T> implements Supplier<Promise<T>> {
 	 *
 	 */
 	private class CalledInstance {
-		final CoThread<Promise<Object>> coThread;
-		T result = null;
-		Promise<T> promise;
-		Consumer<T> resolve;
-		Consumer<Exception> reject;
+		private final CoThread<Promise<Object>> coThread;
+		private T result = null;
+		private Deferred<T> deferred;
+		public void resolve(T result) {
+			deferred.resolve(result);
+		}
+		public void reject(Exception exception) {
+			deferred.reject(exception);
+		}
+		public T getResult() { return result; }
+		public CoThread.Result<Promise<Object>> await() throws InterruptedException { return coThread.await(); }
+		
 		
 		CalledInstance() {
 			coThread = new CoThread<>(yield -> {
@@ -128,24 +133,24 @@ public class Async<T> implements Supplier<Promise<T>> {
 			runningInstanceCount.incrementAndGet();
 			
 			// make a new promise and extract resolve and reject methods
-			promise = new Promise<T>((resolve, reject) -> {this.resolve = resolve; this.reject = reject;});
+			deferred = new Deferred<T>();
 			
-			// add callbacks to promise that decrements running instance count when the call completes.
-			promise.then(() -> {runningInstanceCount.decrementAndGet();});
-			promise.error(() -> {runningInstanceCount.decrementAndGet();});
+			// add callback to promise that decrements running instance count when the call completes.
+			deferred.complete(() -> {runningInstanceCount.decrementAndGet();});
 			
 			// get in line
 			executionQueue.add((Async<Object>.CalledInstance)this);
 			
-			// This promise will resolve when to instance completes successfully, and reject when an error occurs
-			return promise;
+			// This promise will resolve when the instance completes successfully, and reject when an error occurs
+			return deferred.getPromise();
 		}
 	}
 	
-	// Await functional class for awaiting promises in an async functional class.
+	// Await functional class for awaiting promises in an Async functional class.
 	public static class Await {
 		private final Consumer<Promise<Object>> yield;
 		
+		// can't be instantiated by the user. Only Async and itself (but only Async should)
 		private Await(Consumer<Promise<Object>> yield) {
 			this.yield = yield;
 		}
@@ -159,7 +164,7 @@ public class Async<T> implements Supplier<Promise<T>> {
 		 * This is the only exception thrown by await.
 		 */
 		public <E> E apply(Promise<E> promise) throws AsyncException {
-			// yield to calling thread
+			// yield to Async.execute. wait for the promise to complete. Async.execute will take care of that.
 			yield.accept((Promise<Object>)promise);
 			
 			// at this point yield has stopped blocking which should mean that the promise is complete.
@@ -176,6 +181,7 @@ public class Async<T> implements Supplier<Promise<T>> {
 			}
 			else {
 				// if this block runs, something is wrong. Most likely with Async.execute().
+				System.err.println("There is something wrong with Async.execute (most likely). After yielding in Await.apply, the promise is still not complete.");
 				return null;
 			}
 		}

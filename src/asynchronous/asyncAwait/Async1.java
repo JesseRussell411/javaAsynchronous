@@ -4,8 +4,8 @@ import java.util.function.*;
 import asynchronous.Promise;
 
 public class Async1<T1, R> implements Function<T1, Promise<R>>{
-	private Async<R> async;
-	private Object[] args = new Object[1];
+	private final Async<R> async;
+	private final Object[] args = new Object[1];
 	
 	public Async1(BiFunction<Async.Await, T1, R> func, String name) {
 		async = new Async<R>(
