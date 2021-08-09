@@ -34,7 +34,8 @@ public class CoThread<T> implements AutoCloseable {
 	}
 	
 	/**
-	 * Interrupts the thread. The thread will automatically be interrupted eventually when the CoThread is garbage collected, but can interrupted manually by this method if desired. Calling more than once is safe and will do nothing.
+	 * Interrupts the thread. The thread will automatically be interrupted eventually when the CoThread is garbage collected,
+	 * but can interrupted manually by this method if desired. Calling more than once is safe and will do nothing.
 	 */
 	@Override
 	public void close() throws Exception{
@@ -85,7 +86,6 @@ public class CoThread<T> implements AutoCloseable {
 				throw new YieldInterruptedException();
 			}
 		}
-		
 		
 		public boolean notComplete() { return !complete; }
 		public boolean isComplete() { return complete; }
@@ -233,7 +233,7 @@ public class CoThread<T> implements AutoCloseable {
 		}
 		
 		// for garbage collector
-		void closeForGarbageCollector() {
+		private void closeForGarbageCollector() {
 			thread.interrupt();
 		}
 	}

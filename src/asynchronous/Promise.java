@@ -9,38 +9,38 @@ import exceptionsPlus.UncheckedException;
  * @author jesse
  */
 public class Promise<T> {
-    private Queue<Consumer<T>> thenQueue = new LinkedList<>();
-    private Queue<Promise<?>> thenPromises = new LinkedList<>();
-    private Queue<Consumer<Exception>> errorQueue = new LinkedList<>();
+    private final Queue<Consumer<T>> thenQueue = new LinkedList<>();
+    private final Queue<Promise<?>> thenPromises = new LinkedList<>();
+    private final Queue<Consumer<Exception>> errorQueue = new LinkedList<>();
     private boolean resolved = false;
-    private boolean errored = false;
+    private boolean rejected = false;
     private T result = null;
     private Exception exception = null;
     
     public boolean isResolved() { return resolved; }
-    public boolean isErrored() { return errored; }
-    public boolean isComplete() { return resolved || errored; }
+    public boolean isRejected() { return rejected; }
+    public boolean isComplete() { return resolved || rejected; }
     public T getResult() { return result; }
     public Exception getException() { return exception; }
     
     Promise(){}
     
-    public Promise(BiConsumer<Consumer<T>, Consumer<Exception>> func) {
-        func.accept((r) -> resolve(r), (e) -> reject(e));
+    public Promise(BiConsumer<Consumer<T>, Consumer<Exception>> initializer) {
+        initializer.accept((r) -> resolve(r), (e) -> reject(e));
     }
 
-    public Promise(Consumer<Consumer<T>> func){
-        func.accept((t) -> resolve(t));
+    public Promise(Consumer<Consumer<T>> initializer){
+        initializer.accept((t) -> resolve(t));
     }
     
-    private void runThenQueue(){
+    private synchronized void runThenQueue(){
     	Consumer<T> then;
     	while((then = thenQueue.poll()) != null) {
     		then.accept(result);
     	}
     }
     
-    private void runErrorQueue() {
+    private synchronized void runErrorQueue() {
     	Consumer<Exception> error;
     	while((error = errorQueue.poll()) != null) {
     		error.accept(exception);
@@ -55,9 +55,13 @@ public class Promise<T> {
     	thenQueue.clear();
     }
     
-    synchronized void resolve(T result) {
+    synchronized void resolve(T result) throws ResolutionOfCompletedPromiseException{
+    	if (resolved || rejected) {
+    		throw new ResolutionOfCompletedPromiseException(this);
+    	}
+    	
         // cancel if this promise has already been resolved.
-        if (resolved || errored) {return;}
+        if (resolved || rejected) {return;}
         
         // take the result
         this.result = result;
@@ -72,13 +76,16 @@ public class Promise<T> {
         notifyAll();
     }
     
-
-    synchronized void reject(Exception exception) {
+    synchronized void reject(Exception exception) throws RejectionOfCompletedPromiseException{
+    	if (resolved || rejected) {
+    		throw new RejectionOfCompletedPromiseException(this);
+    	}
+    	
         // take the result
         this.exception = exception;
         
         // set resolved
-        errored = true;
+        rejected = true;
         
         // run the next function (given to us by the then method)
         runErrorQueue();
@@ -88,7 +95,7 @@ public class Promise<T> {
     }
     
     public synchronized T await() throws InterruptedException {
-    	while(!resolved && !errored) {
+    	while(!resolved && !rejected) {
     		wait();
     	}
     	
@@ -116,7 +123,7 @@ public class Promise<T> {
     		});
     	});
     	thenPromises.add(prom);
-    	if (errored) {
+    	if (rejected) {
     		runErrorQueue();
     	}
     	if (resolved) {
@@ -139,7 +146,7 @@ public class Promise<T> {
     		});
     	});
     	thenPromises.add(prom);
-    	if (errored) {
+    	if (rejected) {
     		runErrorQueue();
     	}
     	if (resolved) {
@@ -164,7 +171,7 @@ public class Promise<T> {
     			resolve.accept(r);
     		});
     	});
-    	if (errored) {
+    	if (rejected) {
     		runErrorQueue();
     	}
     	if (resolved) {
@@ -186,7 +193,7 @@ public class Promise<T> {
     			}
     		});
     	});
-    	if (errored) {
+    	if (rejected) {
     		runErrorQueue();
     	}
     	if (resolved) {
@@ -233,4 +240,31 @@ public class Promise<T> {
         });
     }
     // END Then and Error
+    
+    // o--------------o
+    // | Sub Classes: |
+    // o--------------o
+    public static class RejectionOfCompletedPromiseException extends RuntimeException{
+		private static final long serialVersionUID = 1L;
+		private final Promise<?> promise;
+    	public Promise<?> getPromise() { return promise; }
+    	
+    	private RejectionOfCompletedPromiseException(Promise<?> promise) {
+    		super("reject was called on a promise which had already been " +
+    				(promise.resolved ? "resolve" : "rejected") + ".");
+    		this.promise = promise;
+    	}
+    }
+    public static class ResolutionOfCompletedPromiseException extends RuntimeException{
+		private static final long serialVersionUID = 1L;
+		private final Promise<?> promise;
+    	public Promise<?> getPromise() { return promise; }
+    	
+    	private ResolutionOfCompletedPromiseException(Promise<?> promise) {
+    		super("resolve was called on a promise which had already been " +
+    				(promise.resolved ? "resolve" : "rejected") + ".");
+    		this.promise = promise;
+    	}
+    }
+    // END Sub Classes
 }

@@ -68,15 +68,19 @@ public class Async<T> implements Supplier<Promise<T>> {
 					instance.reject.accept(exception);
 				}
 				else if (awaitResult != null) {
+					final var awaitedPromise = awaitResult.value;
 					// yield:
 					
 					// awaitResult contains a promise returned by yield
 					// This promise needs to add the instance back onto the execution queue when it completes.
-					awaitResult.value.then(() -> {
+					awaitedPromise.then(() -> {
 						executionQueue.add(instance);
 					});
 					awaitResult.value.error(() -> {
-						executionQueue.add(instance);
+						// since promises can be rejected multiple times
+						if (!awaitedPromise.isComplete()) {
+							executionQueue.add(instance);
+						}
 					});
 				}
 				else {
@@ -163,7 +167,7 @@ public class Async<T> implements Supplier<Promise<T>> {
 			yield.accept((Promise<Object>)promise);
 			
 			// at this point yield has stopped blocking which should mean that the promise is complete.
-			if (promise.isErrored()) {
+			if (promise.isRejected()) {
 				if (promise.getException() instanceof AsyncException) {
 					throw (AsyncException)promise.getException();
 				}
