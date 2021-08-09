@@ -64,6 +64,9 @@ public class Promise<T> {
     	while((prom = thenPromises.poll()) != null) {
     		prom.reject(exception);
     	}
+    	
+    	// remove all thens
+    	thenQueue.clear();
     }
     
     private synchronized void handleCompletionIfComplete() {
