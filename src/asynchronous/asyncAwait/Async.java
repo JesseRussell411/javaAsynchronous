@@ -19,7 +19,7 @@ public class Async<T> implements Supplier<Promise<T>> {
 	private static final long LISTENER_WAIT_MILLISECONDS = 1;
 	private static final int LISTENER_WAIT_NANOSECONDS = 0;
 	private static final AtomicInteger runningInstanceCount = new AtomicInteger(0);
-	private static final Queue<Async<Object>.CalledInstance> executionQueue = new ConcurrentLinkedQueue<>();
+	private static final Queue<Async<?>.CalledInstance> executionQueue = new ConcurrentLinkedQueue<>();
 	private final Function<Await, T> func;
 	private final String name;
 	
@@ -46,12 +46,12 @@ public class Async<T> implements Supplier<Promise<T>> {
 	public static void execute() throws InterruptedException{
 		// execution loop
 		while(true) {
-			Async<Object>.CalledInstance instancePolled;
+			Async<?>.CalledInstance instancePolled;
 			while((instancePolled = executionQueue.poll()) != null) {
-				final Async<Object>.CalledInstance instance = instancePolled;
+				final Async<?>.CalledInstance instance = instancePolled;
 				
 				// run instance until next yield or completion
-				CoThread.Result<Promise<Object>> awaitResult = null;
+				CoThread.Result<Promise<?>> awaitResult = null;
 				Exception exception = null;
 				
 				try {
@@ -82,7 +82,7 @@ public class Async<T> implements Supplier<Promise<T>> {
 					
 					// The instance has run to the end of it's function. It has completed execution.
 					// it should now contain the result of the execution in it's "result" field.
-					instance.resolve(instance.getResult());
+					instance.resolveWithResult();
 				}
 			}
 			
@@ -106,7 +106,7 @@ public class Async<T> implements Supplier<Promise<T>> {
 	 *
 	 */
 	private class CalledInstance {
-		private final CoThread<Promise<Object>> coThread;
+		private final CoThread<Promise<?>> coThread;
 		private T result = null;
 		private Deferred<T> deferred;
 		public void resolve(T result) {
@@ -115,8 +115,11 @@ public class Async<T> implements Supplier<Promise<T>> {
 		public void reject(Exception exception) {
 			deferred.reject(exception);
 		}
+		public void resolveWithResult() {
+			resolve(result);
+		}
 		public T getResult() { return result; }
-		public CoThread.Result<Promise<Object>> await() throws InterruptedException { return coThread.await(); }
+		public CoThread.Result<Promise<?>> await() throws InterruptedException { return coThread.await(); }
 		
 		
 		CalledInstance() {
@@ -139,7 +142,7 @@ public class Async<T> implements Supplier<Promise<T>> {
 			deferred.complete(() -> {runningInstanceCount.decrementAndGet();});
 			
 			// get in line
-			executionQueue.add((Async<Object>.CalledInstance)this);
+			executionQueue.add(this);
 			
 			// This promise will resolve when the instance completes successfully, and reject when an error occurs
 			return deferred.getPromise();
@@ -148,10 +151,10 @@ public class Async<T> implements Supplier<Promise<T>> {
 	
 	// Await functional class for awaiting promises in an Async functional class.
 	public static class Await {
-		private final Consumer<Promise<Object>> yield;
+		private final Consumer<Promise<?>> yield;
 		
 		// can't be instantiated by the user. Only Async and itself (but only Async should)
-		private Await(Consumer<Promise<Object>> yield) {
+		private Await(Consumer<Promise<?>> yield) {
 			this.yield = yield;
 		}
 		
@@ -165,7 +168,7 @@ public class Async<T> implements Supplier<Promise<T>> {
 		 */
 		public <E> E apply(Promise<E> promise) throws AsyncException {
 			// yield to Async.execute. wait for the promise to complete. Async.execute will take care of that.
-			yield.accept((Promise<Object>)promise);
+			yield.accept((Promise<?>)promise);
 			
 			// at this point yield has stopped blocking which should mean that the promise is complete.
 			if (promise.isRejected()) {
@@ -177,7 +180,7 @@ public class Async<T> implements Supplier<Promise<T>> {
 				}
 			}
 			else if (promise.isResolved()) {
-				return (E)promise.getResult();
+				return promise.getResult();
 			}
 			else {
 				// if this block runs, something is wrong. Most likely with Async.execute().
