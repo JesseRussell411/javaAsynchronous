@@ -9,6 +9,7 @@ import asynchronous.CoThread;
 import asynchronous.Deferred;
 import asynchronous.Promise;
 import asynchronous.Timing;
+import asynchronous.UncheckedInterruptedException;
 
 /**
  * Asyncronouse function used for asyncronouse programming. Call Async.execute at the end of the main method to run called async functions.
@@ -37,7 +38,7 @@ public class Async<T> implements Supplier<Promise<T>> {
 	
 	public Promise<T> get(){
 		var inst = new CalledInstance();
-		return inst.execute();
+		return inst.start();
 	}
 	
 	/**
@@ -51,40 +52,7 @@ public class Async<T> implements Supplier<Promise<T>> {
 			while((instancePolled = executionQueue.poll()) != null) {
 				final Async<?>.CalledInstance instance = instancePolled;
 				
-				// run instance until next yield or completion
-				CoThread.Result<Promise<?>> awaitResult = null;
-				Exception exception = null;
-				
-				try {
-					// running instance...
-					awaitResult = instance.await();
-				}
-				catch (Exception e) {
-					// an exception was thrown by the instance.
-					exception = e;
-				}
-				
-				// was it an error, yield, or completion?
-				if (exception != null) {
-					//error:
-					instance.reject(exception);
-				}
-				else if (awaitResult != null) {
-					// yield:
-					
-					// awaitResult contains a promise returned by yield
-					// This promise needs to add the instance back onto the execution queue when it completes.
-					awaitResult.value.complete(() -> {
-						executionQueue.add(instance);
-					});
-				}
-				else {
-					// completion:
-					
-					// The instance has run to the end of it's function. It has completed execution.
-					// it should now contain the result of the execution in it's "result" field.
-					instance.resolveWithResult();
-				}
+				instance.execute();
 			}
 			
 			// executionQueue appears to be empty, check if there's still incomplete async.instances
@@ -121,7 +89,44 @@ public class Async<T> implements Supplier<Promise<T>> {
 			resolve(result);
 		}
 		public T getResult() { return result; }
-		public CoThread.Result<Promise<?>> await() throws InterruptedException { return coThread.await(); }
+		public void execute() throws InterruptedException {
+			CoThread.Result<Promise<?>> awaitResult = null;
+			Exception exception = null;
+			try {
+				awaitResult = coThread.await();
+			}
+			catch(UncheckedInterruptedException ie) {
+				throw ie.getOriginal();
+			}
+			catch(Exception e) {
+				exception = e;
+			}
+			
+			// was it an error, yield, or completion?
+			if (exception != null) {
+				//error:
+				reject(exception);
+			}
+			else if (awaitResult != null) {
+				// yield:
+				if (awaitResult.value == null) {
+					throw new NullPointerException("Promise given to await.accept was null.");
+				}
+				
+				// awaitResult contains a promise returned by yield
+				// This promise needs to add the instance back onto the execution queue when it completes.
+				awaitResult.value.complete(() -> {
+					executionQueue.add(this);
+				});
+			}
+			else {
+				// completion:
+				
+				// The instance has run to the end of it's function. It has completed execution.
+				// it should now contain the result of the execution in it's "result" field.
+				resolve(result);
+			}
+		}
 		
 		CalledInstance() {
 			coThread = new CoThread<>(yield -> {
@@ -129,7 +134,7 @@ public class Async<T> implements Supplier<Promise<T>> {
 			}, name);
 		}
 		
-		Promise<T> execute(){
+		Promise<T> start(){
 			// start coThread
 			coThread.start();
 			
