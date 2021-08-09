@@ -3,15 +3,15 @@ import functionPlus.*;
 
 import asynchronous.Promise;
 
-public class AsyncVoid5<T1, T2, T3, T4, T5> implements PentaFunction<T1, T2, T3, T4, T5, Promise<Object>>{
+public class Async5Void<T1, T2, T3, T4, T5> implements PentaFunction<T1, T2, T3, T4, T5, Promise<Object>>{
 	private final Async5<T1, T2, T3, T4, T5, Object> async;
 	
-	public AsyncVoid5(HexaConsumer<Async.Await, T1, T2, T3, T4, T5> func, String name) {
+	public Async5Void(HexaConsumer<Async.Await, T1, T2, T3, T4, T5> func, String name) {
 		async = new Async5<T1, T2, T3, T4, T5, Object>(
 				(await, t1, t2, t3, t4, t5) -> { func.accept(await, t1, t2, t3, t4, t5); return null; }, name);
 	}
 	
-	public AsyncVoid5(HexaConsumer<Async.Await, T1, T2, T3, T4, T5> func) {
+	public Async5Void(HexaConsumer<Async.Await, T1, T2, T3, T4, T5> func) {
 		this(func, null);
 	}
 	

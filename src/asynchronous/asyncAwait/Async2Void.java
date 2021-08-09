@@ -4,15 +4,15 @@ import java.util.function.*;
 
 import asynchronous.Promise;
 
-public class AsyncVoid2<T1, T2> implements BiFunction<T1, T2, Promise<Object>>{
+public class Async2Void<T1, T2> implements BiFunction<T1, T2, Promise<Object>>{
 	private final Async2<T1, T2, Object> async;
 	
-	public AsyncVoid2(TriConsumer<Async.Await, T1, T2> func, String name) {
+	public Async2Void(TriConsumer<Async.Await, T1, T2> func, String name) {
 		async = new Async2<T1, T2, Object>(
 				(await, t1, t2) -> { func.accept(await, t1, t2); return null; }, name);
 	}
 	
-	public AsyncVoid2(TriConsumer<Async.Await, T1, T2> func) {
+	public Async2Void(TriConsumer<Async.Await, T1, T2> func) {
 		this(func, null);
 	}
 	

@@ -3,15 +3,15 @@ import functionPlus.*;
 
 import asynchronous.Promise;
 
-public class AsyncVoid4<T1, T2, T3, T4> implements QuadFunction<T1, T2, T3, T4, Promise<Object>>{
+public class Async4Void<T1, T2, T3, T4> implements QuadFunction<T1, T2, T3, T4, Promise<Object>>{
 	private final Async4<T1, T2, T3, T4, Object> async;
 	
-	public AsyncVoid4(PentaConsumer<Async.Await, T1, T2, T3, T4> func, String name) {
+	public Async4Void(PentaConsumer<Async.Await, T1, T2, T3, T4> func, String name) {
 		async = new Async4<T1, T2, T3, T4, Object>(
 				(await, t1, t2, t3, t4) -> { func.accept(await, t1, t2, t3, t4); return null; }, name);
 	}
 	
-	public AsyncVoid4(PentaConsumer<Async.Await, T1, T2, T3, T4> func) {
+	public Async4Void(PentaConsumer<Async.Await, T1, T2, T3, T4> func) {
 		this(func, null);
 	}
 	

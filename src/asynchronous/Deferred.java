@@ -20,7 +20,6 @@ public class Deferred<T> {
 		this(new Promise<T>());
 	}
 	
-	
 	public Promise<T> getPromise() { return promise; }
 	public boolean isResolved() { return promise.isResolved(); }
     public boolean isRejected() { return promise.isRejected(); }

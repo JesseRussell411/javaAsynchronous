@@ -3,15 +3,15 @@ import functionPlus.*;
 
 import asynchronous.Promise;
 
-public class AsyncVoid6<T1, T2, T3, T4, T5, T6> implements HexaFunction<T1, T2, T3, T4, T5, T6, Promise<Object>>{
+public class Async6Void<T1, T2, T3, T4, T5, T6> implements HexaFunction<T1, T2, T3, T4, T5, T6, Promise<Object>>{
 	private final Async6<T1, T2, T3, T4, T5, T6, Object> async;
 	
-	public AsyncVoid6(HeptaConsumer<Async.Await, T1, T2, T3, T4, T5, T6> func, String name) {
+	public Async6Void(HeptaConsumer<Async.Await, T1, T2, T3, T4, T5, T6> func, String name) {
 		async = new Async6<T1, T2, T3, T4, T5, T6, Object>(
 				(await, t1, t2, t3, t4, t5, t6) -> { func.accept(await, t1, t2, t3, t4, t5, t6); return null; }, name);
 	}
 	
-	public AsyncVoid6(HeptaConsumer<Async.Await, T1, T2, T3, T4, T5, T6> func) {
+	public Async6Void(HeptaConsumer<Async.Await, T1, T2, T3, T4, T5, T6> func) {
 		this(func, null);
 	}
 	

@@ -169,16 +169,8 @@ public class Driver {
 		// A big mess that I call example 3:
 		// ---------------------------------------------------
 		final var get8 = new Async<Integer>(await -> {
-			int num = await.apply(new Promise<Integer>((resolve, reject) -> new Thread(() -> {
-					try {
-						Thread.sleep(1000);
-					}
-					catch(InterruptedException e) {}
-					
-					resolve.accept(8);
-				}, "get8").start()));
-			
-			return num;
+			await.sleep(1000);
+			return 8;
 		}, "get8");
 		
 		final var get2plus8 = new Async<Integer>(await -> {

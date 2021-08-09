@@ -1,14 +1,13 @@
 package asynchronous;
 
 import java.util.function.Consumer;
-
-import exceptionsPlus.UncheckedException;
-
+import java.util.function.Supplier;
 
 
 
 
-public class CoThread<T> implements AutoCloseable {
+
+public class CoThread<T> implements AutoCloseable, Supplier<Promise<CoThread.Result<T>>> {
 	private CoThreadHolder<T> threadHolder;
 	public boolean notComplete() { return threadHolder.notComplete(); }
 	public boolean isComplete() { return threadHolder.isComplete(); }

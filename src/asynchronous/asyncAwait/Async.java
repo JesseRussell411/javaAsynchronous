@@ -191,9 +191,16 @@ public class Async<T> implements Supplier<Promise<T>> {
 		}
 		
 		// utils:
+		/**
+		 * Non-blocking sleep function. 
+		 */
 		public void sleep(long milliseconds, int nanoseconds) {
 			apply(Timing.setTimeout(() -> null, milliseconds, nanoseconds));
 		}
+		
+		/**
+		 * Non-blocking sleep function.
+		 */
 		public void sleep(long milliseconds) {
 			apply(Timing.setTimeout(() -> null, milliseconds));
 		}

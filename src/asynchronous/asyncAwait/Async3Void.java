@@ -3,15 +3,15 @@ import functionPlus.*;
 
 import asynchronous.Promise;
 
-public class AsyncVoid3<T1, T2, T3> implements TriFunction<T1, T2, T3, Promise<Object>>{
+public class Async3Void<T1, T2, T3> implements TriFunction<T1, T2, T3, Promise<Object>>{
 	private final Async3<T1, T2, T3, Object> async;
 	
-	public AsyncVoid3(QuadConsumer<Async.Await, T1, T2, T3> func, String name) {
+	public Async3Void(QuadConsumer<Async.Await, T1, T2, T3> func, String name) {
 		async = new Async3<T1, T2, T3, Object>(
 				(await, t1, t2, t3) -> { func.accept(await, t1, t2, t3); return null; }, name);
 	}
 	
-	public AsyncVoid3(QuadConsumer<Async.Await, T1, T2, T3> func) {
+	public Async3Void(QuadConsumer<Async.Await, T1, T2, T3> func) {
 		this(func, null);
 	}
 	

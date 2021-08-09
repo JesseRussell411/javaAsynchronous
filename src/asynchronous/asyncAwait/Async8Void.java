@@ -3,15 +3,15 @@ import functionPlus.*;
 
 import asynchronous.Promise;
 
-public class AsyncVoid8<T1, T2, T3, T4, T5, T6, T7, T8> implements OctoFunction<T1, T2, T3, T4, T5, T6, T7, T8, Promise<Object>>{
+public class Async8Void<T1, T2, T3, T4, T5, T6, T7, T8> implements OctoFunction<T1, T2, T3, T4, T5, T6, T7, T8, Promise<Object>>{
 	private final Async8<T1, T2, T3, T4, T5, T6, T7, T8, Object> async;
 	
-	public AsyncVoid8(NonaConsumer<Async.Await, T1, T2, T3, T4, T5, T6, T7, T8> func, String name) {
+	public Async8Void(NonaConsumer<Async.Await, T1, T2, T3, T4, T5, T6, T7, T8> func, String name) {
 		async = new Async8<T1, T2, T3, T4, T5, T6, T7, T8, Object>(
 				(await, t1, t2, t3, t4, t5, t6, t7, t8) -> { func.accept(await, t1, t2, t3, t4, t5, t6, t7, t8); return null; }, name);
 	}
 	
-	public AsyncVoid8(NonaConsumer<Async.Await, T1, T2, T3, T4, T5, T6, T7, T8> func) {
+	public Async8Void(NonaConsumer<Async.Await, T1, T2, T3, T4, T5, T6, T7, T8> func) {
 		this(func, null);
 	}
 	
