@@ -12,7 +12,7 @@ import asynchronous.Timing;
 import asynchronous.UncheckedInterruptedException;
 
 /**
- * Asyncronouse function used for asyncronouse programming. Call Async.execute at the end of the main method to run called async functions.
+ * Asynchronous function used for asynchronous programming. Call Async.execute at the end of the main method to run called Async functions.
  * @author jesse
  *
  * @param <T>
@@ -42,16 +42,14 @@ public class Async<T> implements Supplier<Promise<T>> {
 	}
 	
 	/**
-	 * Runs all async instances in the execution queue.
+	 * Runs all Async instances in the execution queue.
 	 * @throws InterruptedException
 	 */
 	public static void execute() throws InterruptedException{
 		// execution loop
 		while(true) {
-			Async<?>.CalledInstance instancePolled;
-			while((instancePolled = executionQueue.poll()) != null) {
-				final Async<?>.CalledInstance instance = instancePolled;
-				
+			Async<?>.CalledInstance instance;
+			while((instance = executionQueue.poll()) != null) {
 				instance.execute();
 			}
 			
@@ -70,7 +68,7 @@ public class Async<T> implements Supplier<Promise<T>> {
 	
 	
 	/**
-	 * Call to an async function.
+	 * Call to an Async function.
 	 * @author jesse
 	 *
 	 */
