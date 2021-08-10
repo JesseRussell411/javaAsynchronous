@@ -1,7 +1,7 @@
 package exceptionsPlus;
 
 // Wrapper around any exception to ensure that is unchecked.
-public class UncheckedException extends RuntimeException {
+public class UncheckedWrapper extends RuntimeException {
 	private static final long serialVersionUID = 1L;
 	
 	/**
@@ -11,7 +11,7 @@ public class UncheckedException extends RuntimeException {
 	public Exception getOriginal() {
 		return original;
 	}
-	public UncheckedException(Exception original) {
+	public UncheckedWrapper(Exception original) {
 		super(original.getMessage(), original.getCause());
 		this.original = original;
 	}

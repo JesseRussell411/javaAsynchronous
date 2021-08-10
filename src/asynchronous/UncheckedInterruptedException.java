@@ -1,8 +1,8 @@
 package asynchronous;
 
-import exceptionsPlus.UncheckedException;
+import exceptionsPlus.UncheckedWrapper;
 
-public class UncheckedInterruptedException extends UncheckedException {
+public class UncheckedInterruptedException extends UncheckedWrapper {
 	private static final long serialVersionUID = 1L;
 	public InterruptedException getOriginal() {
 		return (InterruptedException)getOriginal();

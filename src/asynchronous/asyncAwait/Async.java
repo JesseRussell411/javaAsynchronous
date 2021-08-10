@@ -10,6 +10,7 @@ import asynchronous.Deferred;
 import asynchronous.Promise;
 import asynchronous.Timing;
 import asynchronous.UncheckedInterruptedException;
+import exceptionsPlus.UncheckedWrapper;
 
 /**
  * Asynchronous function used for asynchronous programming. Call Async.execute at the end of the main method to run called Async functions.
@@ -167,20 +168,20 @@ public class Async<T> implements Supplier<Promise<T>> {
 		 * @param <E> The type of the promise.
 		 * @param promise
 		 * @return result of promise
-		 * @throws AsyncException Wrapper around all Exceptions checked and un-checked. Will contain whatever exception was thrown.
+		 * @throws UncheckedWrapper Wrapper around all Exceptions checked and un-checked. Will contain whatever exception was thrown.
 		 * This is the only exception thrown by await.
 		 */
-		public <E> E apply(Promise<E> promise) throws AsyncException {
+		public <E> E apply(Promise<E> promise) throws UncheckedWrapper {
 			// yield to Async.execute. wait for the promise to complete. Async.execute will take care of that.
 			yield.accept((Promise<?>)promise);
 			
 			// at this point yield has stopped blocking which should mean that the promise is complete.
 			if (promise.isRejected()) {
-				if (promise.getException() instanceof AsyncException) {
-					throw (AsyncException)promise.getException();
+				if (promise.getException() instanceof UncheckedWrapper) {
+					throw (UncheckedWrapper)promise.getException();
 				}
 				else {
-					throw new AsyncException(promise.getException());
+					throw new UncheckedWrapper(promise.getException());
 				}
 			}
 			else if (promise.isResolved()) {
@@ -195,7 +196,7 @@ public class Async<T> implements Supplier<Promise<T>> {
 		
 		// utils:
 		/**
-		 * Non-blocking sleep function. 
+		 * Non-blocking sleep function.
 		 */
 		public void sleep(long milliseconds, int nanoseconds) {
 			apply(Timing.setTimeout(() -> null, milliseconds, nanoseconds));

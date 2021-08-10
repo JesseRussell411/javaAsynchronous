@@ -4,6 +4,7 @@ import java.util.function.*;
 
 import asynchronous.*;
 import asynchronous.asyncAwait.*;
+import exceptionsPlus.UncheckedWrapper;
 
 public class Driver {
 	public static void main(String[] args) throws InterruptedException{
@@ -101,7 +102,7 @@ public class Driver {
 			// sleep for a bit
 			await.sleep(900);
 			
-			//get around to returning world
+			// get around to returning world
 			return "world";
 		}, "getWorld");
 		
@@ -134,7 +135,7 @@ public class Driver {
 		// Error handling example/test:
 		// ---------------------------
 		
-		// Errors propagate up just like in javascript, but they do have to be wrapped in AsyncException (a RuntimeException)
+		// Errors propagate up just like in javascript, but they do have to be wrapped in UncheckedWrapper (a RuntimeException)
 		// because checked exceptions get really annoying when you're using lambdas.
 		final var throwSomething = new AsyncVoid(await -> {
 			throw new NullPointerException("This pointer doesn't exist. Oh, wait that means void! sorry");
@@ -145,12 +146,11 @@ public class Driver {
 		}, "runThrowSomethingAsIfItDoesntThrowAnything");
 		
 		final var main2 = new AsyncVoid(await -> {
-			
 			System.out.println("Error handling test...");
 			try {
 				await.apply(runThrowSomethingAsIfItDoesntThrowAnything.get());
 			}
-			catch(AsyncException ae) {
+			catch(UncheckedWrapper ae) {
 				var e = ae.getOriginal();
 				if (e instanceof IndexOutOfBoundsException) {
 					System.out.println("If this text is displayed. Error handing is confused...");
@@ -159,8 +159,9 @@ public class Driver {
 					System.out.println("If this text is displayed. Error handling works.");
 				}
 			}
-			
 		});
+		
+		
 		
 		main2.get();
 		Async.execute();
@@ -184,7 +185,7 @@ public class Driver {
 			try {
 				return await.apply(PromiseForHello) + await.apply(PromiseFor10);
 			}
-			catch(AsyncException ae) {
+			catch(UncheckedWrapper ae) {
 				var e = ae.getOriginal();
 				if (e instanceof InterruptedException) {
 					System.out.println("SOMETHING WENT WRONG! interrupted");

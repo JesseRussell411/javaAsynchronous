@@ -3,11 +3,11 @@ import java.util.function.*;
 
 import asynchronous.Promise;
 
-public class Async1Void<T1> implements Function<T1, Promise<Object>>{
-	private final Async1<T1, Object> async;
+public class Async1Void<T1> implements Function<T1, Promise<Void>>{
+	private final Async1<T1, Void> async;
 	
 	public Async1Void(BiConsumer<Async.Await, T1> func, String name) {
-		async = new Async1<T1, Object>(
+		async = new Async1<T1, Void>(
 				(await, t1) -> { func.accept(await, t1); return null; }, name);
 	}
 	
@@ -15,7 +15,7 @@ public class Async1Void<T1> implements Function<T1, Promise<Object>>{
 		this(func, null);
 	}
 	
-	public synchronized Promise<Object> apply(T1 t1) {
+	public synchronized Promise<Void> apply(T1 t1) {
 		return async.apply(t1);
 	}
 	

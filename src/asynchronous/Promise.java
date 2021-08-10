@@ -3,7 +3,7 @@ import java.util.LinkedList;
 import java.util.Queue;
 import java.util.function.*;
 
-import exceptionsPlus.UncheckedException;
+import exceptionsPlus.UncheckedWrapper;
 /**
  *
  * @author jesse
@@ -159,7 +159,7 @@ public class Promise<T> {
     		return result;
     	}
     	else {
-    		throw new UncheckedException(exception);
+    		throw new UncheckedWrapper(exception);
     	}
     }
 
