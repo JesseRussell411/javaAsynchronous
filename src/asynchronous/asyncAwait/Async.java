@@ -53,8 +53,8 @@ public class Async<T> implements Supplier<Promise<T>> {
 				instance.execute();
 			}
 			
-			// executionQueue appears to be empty, check if there's still incomplete async.instances
-			if (runningInstanceCount.get() > 0) {
+			// executionQueue appears to be empty, check if there's still incomplete async.instances, and double check if executionQueue is empty
+			if (runningInstanceCount.get() > 0 || !executionQueue.isEmpty()) {
 				// if so, wait for some time, then start the loop over again.
 				Thread.sleep(LISTENER_WAIT_MILLISECONDS, LISTENER_WAIT_NANOSECONDS);
 			}

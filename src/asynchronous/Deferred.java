@@ -51,6 +51,30 @@ public class Deferred<T> {
 		}
 	}
 	
+	public boolean resolve(Supplier<T> getResult) {
+		synchronized(promise) {
+			if (promise.isComplete()) {
+				return false;
+			}
+			else {
+				promise.resolve(getResult.get());
+				return true;
+			}
+		}
+	}
+	
+	public boolean reject(Supplier<Exception> getException) {
+		synchronized(promise) {
+			if (promise.isComplete()) {
+				return false;
+			}
+			else {
+				promise.reject(getException.get());
+				return true;
+			}
+		}
+	}
+	
 	public T await() throws InterruptedException { return promise.await(); }
 	
 	// o----------------------------o
