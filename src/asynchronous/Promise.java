@@ -13,9 +13,9 @@ public class Promise<T> {
     private final Queue<Consumer<T>> thenQueue = new LinkedList<>();
     private final Queue<Promise<?>> thenPromises = new LinkedList<>();
     // queue of functions to run on rejection (like the catch block)
-    private final Queue<Consumer<Exception>> errorQueue = new LinkedList<>();
+    private final Queue<Consumer<Exception>> onErrorQueue = new LinkedList<>();
     // queue of function to run on resolution or rejection (like the finally block)
-    private final Queue<Runnable> completeQueue = new LinkedList<>();
+    private final Queue<Runnable> onCompletionQueue = new LinkedList<>();
     private boolean resolved = false;
     private boolean rejected = false;
     private T result = null;
@@ -83,12 +83,12 @@ public class Promise<T> {
     	thenPromises.clear();
     	
     	// clear the error queue
-    	errorQueue.clear();
+    	onErrorQueue.clear();
     }
     
     private synchronized void handleError() {
     	// run error queue
-    	runConsumerQueue(errorQueue, exception);
+    	runConsumerQueue(onErrorQueue, exception);
     	
     	// reject all then promises
     	Promise<?> prom;
@@ -103,11 +103,11 @@ public class Promise<T> {
     private synchronized void handleCompletionIfComplete() {
     	if (rejected) {
     		handleError();
-    		runRunnableQueue(completeQueue);
+    		runRunnableQueue(onCompletionQueue);
     	}
     	else if (resolved) {
     		handleThen();
-    		runRunnableQueue(completeQueue);
+    		runRunnableQueue(onCompletionQueue);
     	}
     }
     
@@ -150,7 +150,8 @@ public class Promise<T> {
         notifyAll();
     }
     
-    public synchronized T await() throws InterruptedException {
+    public synchronized T await() throws InterruptedException, UncheckedWrapper {
+    	notify();
     	while(!resolved && !rejected) {
     		wait();
     	}
@@ -163,9 +164,9 @@ public class Promise<T> {
     	}
     }
 
-    // o----------------------------o
-    // | Then, Error, and Complete: |
-    // o----------------------------o
+    // o----------------------------------o
+    // | Then, onError, and onCompletion: |
+    // o----------------------------------o
     public synchronized <R> Promise<R> then(Function<T, R> func) {
     	final var prom = new Promise<R>((resolve, reject) -> {
     		thenQueue.add(r -> {
@@ -191,7 +192,7 @@ public class Promise<T> {
     			try {
 	    			final var funcProm = func.apply(r);
 	    			funcProm.then(r2 -> {resolve.accept(r2);});
-	    			funcProm.error(e -> {reject.accept(e);});
+	    			funcProm.onError(e -> {reject.accept(e);});
     			}
     			catch (Exception e) {
     				reject.accept(e);
@@ -205,9 +206,9 @@ public class Promise<T> {
     	return prom;
     }
     
-    public synchronized Promise<T> error(Consumer<Exception> func) {
+    public synchronized Promise<T> onError(Consumer<Exception> func) {
     	final var prom = new Promise<T>((resolve, reject) -> {
-    		errorQueue.add(e -> {
+    		onErrorQueue.add(e -> {
     			try {
     				func.accept(e);
     				reject.accept(e);
@@ -227,13 +228,13 @@ public class Promise<T> {
     	return prom;
     }
     
-    public synchronized <R> Promise<R> asyncError(Function<Exception, Promise<R>> func) {
+    public synchronized <R> Promise<R> asyncOnError(Function<Exception, Promise<R>> func) {
     	final var prom = new Promise<R>((resolve, reject) -> {
-    		errorQueue.add(e -> {
+    		onErrorQueue.add(e -> {
     			try {
 	    			final var prom2 = func.apply(e);
 	    			prom2.then(r -> {resolve.accept(r);});
-	    			prom2.error(e2 -> {reject.accept(e2);});
+	    			prom2.onError(e2 -> {reject.accept(e2);});
     			}
     			catch(Exception e2) {
     				reject.accept(e2);
@@ -246,9 +247,9 @@ public class Promise<T> {
     	return prom;
     }
     
-    public synchronized <R> Promise<R> complete(Supplier<R> func){
+    public synchronized <R> Promise<R> onCompletion(Supplier<R> func){
     	final var prom = new Promise<R>((resolve, reject) -> {
-    		completeQueue.add(() -> {
+    		onCompletionQueue.add(() -> {
     			try {
 	    			final var r = func.get();
 	    			resolve.accept(r);
@@ -264,13 +265,13 @@ public class Promise<T> {
     	return prom;
     }
     
-    public synchronized <R> Promise<R> asyncComplete(Supplier<Promise<R>> func){
+    public synchronized <R> Promise<R> asyncOnCompletion(Supplier<Promise<R>> func){
     	final var prom = new Promise<R>((resolve, reject) -> {
-    		completeQueue.add(() -> {
+    		onCompletionQueue.add(() -> {
     			try {
 	    			final var funcProm = func.get();
 	    			funcProm.then(r2 -> {resolve.accept(r2);});
-	    			funcProm.error(e -> {reject.accept(e);});
+	    			funcProm.onError(e -> {reject.accept(e);});
     			}
     			catch (Exception e) {
     				reject.accept(e);
@@ -309,20 +310,20 @@ public class Promise<T> {
         });
     }
     
-    public synchronized Promise<T> error(Runnable func) {
-    	return error(e -> {
+    public synchronized Promise<T> onError(Runnable func) {
+    	return onError(e -> {
     		func.run();
     	});
     }
     
-    public synchronized <R> Promise<R> asyncError(Supplier<Promise<R>> func) {
-        return asyncError((e) -> {
+    public synchronized <R> Promise<R> asyncOnError(Supplier<Promise<R>> func) {
+        return asyncOnError((e) -> {
             return func.get();
         });
     }
     
-    public synchronized Promise<Object> complete(Runnable func){
-    	return complete(() -> {
+    public synchronized Promise<Object> onCompletion(Runnable func){
+    	return onCompletion(() -> {
     		func.run();
     		return null;
     	});

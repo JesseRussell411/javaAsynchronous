@@ -114,7 +114,7 @@ public class Async<T> implements Supplier<Promise<T>> {
 				
 				// awaitResult contains a promise returned by yield
 				// This promise needs to add the instance back onto the execution queue when it completes.
-				awaitResult.value.complete(() -> {
+				awaitResult.value.onCompletion(() -> {
 					executionQueue.add(this);
 				});
 			}

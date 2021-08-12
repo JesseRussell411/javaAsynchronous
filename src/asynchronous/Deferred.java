@@ -87,14 +87,14 @@ public class Deferred<T> {
     public synchronized Promise<T> then(Consumer<T> func) { return promise.then(func); }
     public synchronized Promise<T> then(Runnable func) { return promise.then(func); }
     
-    public synchronized <R> Promise<R> asyncError(Function<Exception, Promise<R>> func) { return promise.asyncError(func); }
-    public synchronized <R> Promise<R> asyncError(Supplier<Promise<R>> func) { return promise.asyncError(func); }    
-    public synchronized Promise<T> error(Consumer<Exception> func) { return promise.error(func); }
-    public synchronized Promise<T> error(Runnable func) { return promise.error(func); }
+    public synchronized <R> Promise<R> asyncError(Function<Exception, Promise<R>> func) { return promise.asyncOnError(func); }
+    public synchronized <R> Promise<R> asyncError(Supplier<Promise<R>> func) { return promise.asyncOnError(func); }    
+    public synchronized Promise<T> error(Consumer<Exception> func) { return promise.onError(func); }
+    public synchronized Promise<T> error(Runnable func) { return promise.onError(func); }
     
-    public synchronized <R> Promise<R> asyncComplete(Supplier<Promise<R>> func) { return promise.asyncComplete(func); }
-    public synchronized <R> Promise<R> complete(Supplier<R> func) { return promise.complete(func); }
-    public synchronized Promise<Object> complete(Runnable func) { return promise.complete(func); }
+    public synchronized <R> Promise<R> asyncComplete(Supplier<Promise<R>> func) { return promise.asyncOnCompletion(func); }
+    public synchronized <R> Promise<R> complete(Supplier<R> func) { return promise.onCompletion(func); }
+    public synchronized Promise<Object> complete(Runnable func) { return promise.onCompletion(func); }
     // END Then and Error
     
     // o-------------------o
