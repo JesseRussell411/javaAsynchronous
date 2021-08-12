@@ -45,7 +45,7 @@ public class Promise<T> {
     
     /**
      * Runs the initializer to create a promise. NOTE: The initializer will block the calling function as the initializer is called in the same thread.
-     * To run the initializer in a new thread use "Promise.threadInit" instead or start a new thread inside the initializer.
+     * To initialize asynchronously use "Promise.threadInit" instead or start a new thread inside the initializer.
      * @param Initializer function that consumes resolve and reject functions. Use them to resolve or reject the promise respectively.
      */
     public Promise(BiConsumer<Consumer<T>, Consumer<Exception>> initializer) {
@@ -54,7 +54,7 @@ public class Promise<T> {
 
     /**
      * Runs the initializer to create a promise. NOTE: The initializer will block the calling function as the initializer is called in the same thread.
-     * To run the initializer in a new thread use "Promise.threadInit" instead or start a new thread inside the initializer.
+     * To initialize asynchronously use "Promise.threadInit" instead or start a new thread inside the initializer.
      * @param Initializer function that consumes a resolve method. Use it to resolve the promise.
      */
     public Promise(Consumer<Consumer<T>> initializer){
