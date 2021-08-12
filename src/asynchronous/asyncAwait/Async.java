@@ -78,14 +78,11 @@ public class Async<T> implements Supplier<Promise<T>> {
 		private T result = null;
 		private Deferred<T> deferred;
 		
-		public void resolve(T result) {
+		private void resolve(T result) {
 			deferred.resolve(result);
 		}
-		public void reject(Exception exception) {
+		private void reject(Exception exception) {
 			deferred.reject(exception);
-		}
-		public void resolveWithResult() {
-			resolve(result);
 		}
 		public T getResult() { return result; }
 		public void execute() throws InterruptedException {
@@ -196,14 +193,14 @@ public class Async<T> implements Supplier<Promise<T>> {
 		
 		// utils:
 		/**
-		 * Non-blocking sleep function.
+		 * Non-blocking sleep function. May sleep for longer than the specified time while it waits it's turn to execute.
 		 */
 		public void sleep(long milliseconds, int nanoseconds) {
 			apply(Timing.setTimeout(() -> null, milliseconds, nanoseconds));
 		}
 		
 		/**
-		 * Non-blocking sleep function.
+		 * Non-blocking sleep function. May sleep for longer than the specified time while it waits it's turn to execute.
 		 */
 		public void sleep(long milliseconds) {
 			apply(Timing.setTimeout(() -> null, milliseconds));

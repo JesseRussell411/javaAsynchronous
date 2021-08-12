@@ -328,7 +328,7 @@ public class Promise<T> {
     		return null;
     	});
     }
-    // END Then and Error
+    // END Then, onError, and onCompletion
     
     // o--------------o
     // | Sub Classes: |

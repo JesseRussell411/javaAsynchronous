@@ -150,13 +150,16 @@ public class Driver {
 			try {
 				await.apply(runThrowSomethingAsIfItDoesntThrowAnything.get());
 			}
-			catch(UncheckedWrapper ae) {
-				var e = ae.getOriginal();
+			catch(UncheckedWrapper uw) {
+				var e = uw.getOriginal();
 				if (e instanceof IndexOutOfBoundsException) {
 					System.out.println("If this text is displayed. Error handing is confused...");
 				}
-				if (e instanceof NullPointerException) {
+				else if (e instanceof NullPointerException) {
 					System.out.println("If this text is displayed. Error handling works.");
+				}
+				else {
+					throw uw;
 				}
 			}
 		});
