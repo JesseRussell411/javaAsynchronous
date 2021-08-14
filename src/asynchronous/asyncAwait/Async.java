@@ -19,12 +19,11 @@ import exceptionsPlus.UncheckedWrapper;
  * @param <T>
  */
 public class Async<T> implements Supplier<Promise<T>> {
-	private static final long LISTENER_WAIT_MILLISECONDS = 1;
-	private static final int LISTENER_WAIT_NANOSECONDS = 0;
 	private static final AtomicInteger runningInstanceCount = new AtomicInteger(0);
 	private static final Queue<Async<?>.CalledInstance> executionQueue = new ConcurrentLinkedQueue<>();
 	private final Function<Await, T> func;
 	private final String name;
+	private static final Object executeWaitLock = new Object();
 	
 	public String getName() { return name; }
 	
@@ -48,22 +47,24 @@ public class Async<T> implements Supplier<Promise<T>> {
 	 */
 	public static void execute() throws InterruptedException{
 		// execution loop
-		while(true) {
+		do {
 			Async<?>.CalledInstance instance;
 			while((instance = executionQueue.poll()) != null) {
 				instance.execute();
 			}
 			
-			// executionQueue appears to be empty, check if there's still incomplete async.instances, and double check if executionQueue is empty
-			if (runningInstanceCount.get() > 0 || !executionQueue.isEmpty()) {
-				// if so, wait for some time, then start the loop over again.
-				Thread.sleep(LISTENER_WAIT_MILLISECONDS, LISTENER_WAIT_NANOSECONDS);
+			// execution queue is empty, as long as there's still instances running:
+			// Wait for the execution queue to be enqueued with something to run
+			// or for there to be no running instances.
+			synchronized(executeWaitLock) {
+				while(runningInstanceCount.get() > 0 && executionQueue.isEmpty()) {
+					executeWaitLock.wait();
+				}
 			}
-			else {
-				// if not, stop the loop. execution is complete.
-				break;
-			}
-		}
+			
+			// wait over, if there are no running instances and the executionQueue is empty: 
+			// break and finish execution.
+		} while(!(runningInstanceCount.get() == 0 && executionQueue.isEmpty()));
 	}
 	
 	
@@ -112,7 +113,10 @@ public class Async<T> implements Supplier<Promise<T>> {
 				// awaitResult contains a promise returned by yield
 				// This promise needs to add the instance back onto the execution queue when it completes.
 				awaitResult.value.onCompletion(() -> {
-					executionQueue.add(this);
+					synchronized(executeWaitLock) {
+						executionQueue.add(this);
+						executeWaitLock.notify();
+					}
 				});
 			}
 			else {
@@ -141,10 +145,18 @@ public class Async<T> implements Supplier<Promise<T>> {
 			deferred = new Deferred<T>();
 			
 			// add callback to promise that decrements running instance count when the call completes.
-			deferred.complete(() -> {runningInstanceCount.decrementAndGet();});
+			deferred.complete(() -> {
+				synchronized(executeWaitLock) {
+					runningInstanceCount.decrementAndGet();
+					executeWaitLock.notify();
+				}
+			});
 			
-			// get in line
-			executionQueue.add(this);
+			synchronized(executeWaitLock) {
+				// get in line
+				executionQueue.add(this);
+				executeWaitLock.notify();
+			}
 			
 			// This promise will resolve when the instance completes successfully, and reject when an error occurs
 			return deferred.getPromise();
