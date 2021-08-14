@@ -25,6 +25,38 @@ public class Async<T> implements Supplier<Promise<T>> {
 	private final String name;
 	private static final Object executeWaitLock = new Object();
 	
+	/**
+	 * Notify Async class that the instance has started
+	 */
+	private static void asyncStartNotify(Async.CalledInstance inst) {
+		synchronized(executeWaitLock) {
+			executionQueue.add(inst);
+			runningInstanceCount.incrementAndGet();
+			executeWaitLock.notify();
+		}
+	}
+	
+	/**
+	 * Notify Async class that an awaited promise has completed
+	 * @param inst The instance awaiting the promise
+	 */
+	private static void asyncAwaitCompleteNofify(Async.CalledInstance inst) {
+		synchronized(executeWaitLock) {
+			executionQueue.add(inst);
+			executeWaitLock.notify();
+		}
+	}
+	
+	/**
+	 * Notify Async class that an instance has completed
+	 */
+	private static void asyncCompleteNotify() {
+		synchronized(executeWaitLock) {
+			runningInstanceCount.decrementAndGet();
+			executeWaitLock.notify();
+		}
+	}
+	
 	public String getName() { return name; }
 	
 	public Async(Function<Await, T> func) {
@@ -113,10 +145,7 @@ public class Async<T> implements Supplier<Promise<T>> {
 				// awaitResult contains a promise returned by yield
 				// This promise needs to add the instance back onto the execution queue when it completes.
 				awaitResult.value.onCompletion(() -> {
-					synchronized(executeWaitLock) {
-						executionQueue.add(this);
-						executeWaitLock.notify();
-					}
+					asyncAwaitCompleteNofify(this);
 				});
 			}
 			else {
@@ -138,25 +167,16 @@ public class Async<T> implements Supplier<Promise<T>> {
 			// start coThread
 			coThread.start();
 			
-			// increments running instance count
-			runningInstanceCount.incrementAndGet();
-			
 			// make a new promise and extract resolve and reject methods
 			deferred = new Deferred<T>();
 			
 			// add callback to promise that decrements running instance count when the call completes.
 			deferred.complete(() -> {
-				synchronized(executeWaitLock) {
-					runningInstanceCount.decrementAndGet();
-					executeWaitLock.notify();
-				}
+				asyncCompleteNotify();
 			});
 			
-			synchronized(executeWaitLock) {
-				// get in line
-				executionQueue.add(this);
-				executeWaitLock.notify();
-			}
+			// Notify Async class that this instance has started.
+			asyncStartNotify(this);
 			
 			// This promise will resolve when the instance completes successfully, and reject when an error occurs
 			return deferred.getPromise();
