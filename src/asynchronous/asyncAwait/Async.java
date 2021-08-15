@@ -28,7 +28,7 @@ public class Async<T> implements Supplier<Promise<T>> {
 	/**
 	 * Notify Async class that the instance has started
 	 */
-	private static void asyncStartNotify(Async.CalledInstance inst) {
+	private static void asyncStartNotify(Async<?>.CalledInstance inst) {
 		synchronized(executeWaitLock) {
 			executionQueue.add(inst);
 			runningInstanceCount.incrementAndGet();
@@ -40,7 +40,7 @@ public class Async<T> implements Supplier<Promise<T>> {
 	 * Notify Async class that an awaited promise has completed
 	 * @param inst The instance awaiting the promise
 	 */
-	private static void asyncAwaitCompleteNofify(Async.CalledInstance inst) {
+	private static void asyncAwaitCompleteNofify(Async<?>.CalledInstance inst) {
 		synchronized(executeWaitLock) {
 			executionQueue.add(inst);
 			executeWaitLock.notify();
@@ -119,10 +119,10 @@ public class Async<T> implements Supplier<Promise<T>> {
 		}
 		public T getResult() { return result; }
 		public void execute() throws InterruptedException {
-			CoThread.Result<Promise<?>> awaitResult = null;
+			boolean coThreadYielded = false;
 			Exception exception = null;
 			try {
-				awaitResult = coThread.await();
+				coThreadYielded = coThread.await();
 			}
 			catch(UncheckedInterruptedException ie) {
 				throw ie.getOriginal();
@@ -136,15 +136,15 @@ public class Async<T> implements Supplier<Promise<T>> {
 				//error:
 				reject(exception);
 			}
-			else if (awaitResult != null) {
+			else if (coThreadYielded) {
 				// yield:
-				if (awaitResult.value == null) {
+				if (coThread.getResult() == null) {
 					throw new NullPointerException("Promise given to await.accept was null.");
 				}
 				
 				// awaitResult contains a promise returned by yield
 				// This promise needs to add the instance back onto the execution queue when it completes.
-				awaitResult.value.onCompletion(() -> {
+				coThread.getResult().onCompletion(() -> {
 					asyncAwaitCompleteNofify(this);
 				});
 			}
