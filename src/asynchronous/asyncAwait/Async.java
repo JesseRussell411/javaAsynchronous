@@ -171,7 +171,7 @@ public class Async<T> implements Supplier<Promise<T>> {
 			deferred = new Deferred<T>();
 			
 			// add callback to promise that decrements running instance count when the call completes.
-			deferred.complete(() -> {
+			deferred.onCompletion(() -> {
 				asyncCompleteNotify();
 			});
 			
