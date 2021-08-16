@@ -1,7 +1,11 @@
 package asynchronous;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.function.*;
 
-public class Deferred<T> {
+public class Deferred<T> implements Future<T>{
 	private final Promise<T> promise;
 	
 	private Deferred(Promise<T> promise) {
@@ -75,7 +79,9 @@ public class Deferred<T> {
 		}
 	}
 	
-	public T await() throws InterruptedException { return promise.await(); }
+	public T await() throws InterruptedException, Exception { return promise.await(); }
+	public T await(long millisecondTimeout) throws InterruptedException, Exception { return promise.await(millisecondTimeout); }
+	public T await(long millisecondTimeout, int nanoSecondTimeout) throws InterruptedException, Exception { return promise.await(millisecondTimeout, nanoSecondTimeout); }
 	
 	// o----------------------------o
     // | Then, Error, and Complete: |
@@ -87,10 +93,10 @@ public class Deferred<T> {
     public synchronized Promise<T> then(Consumer<T> func) { return promise.then(func); }
     public synchronized Promise<T> then(Runnable func) { return promise.then(func); }
     
-    public synchronized <R> Promise<R> asyncError(Function<Exception, Promise<R>> func) { return promise.asyncOnError(func); }
-    public synchronized <R> Promise<R> asyncError(Supplier<Promise<R>> func) { return promise.asyncOnError(func); }    
-    public synchronized Promise<T> error(Consumer<Exception> func) { return promise.onError(func); }
-    public synchronized Promise<T> error(Runnable func) { return promise.onError(func); }
+    public synchronized <R> Promise<R> asyncOnRejection(Function<Exception, Promise<R>> func) { return promise.asyncOnRejection(func); }
+    public synchronized <R> Promise<R> asyncError(Supplier<Promise<R>> func) { return promise.asyncOnRejection(func); }    
+    public synchronized Promise<T> error(Consumer<Exception> func) { return promise.onRejection(func); }
+    public synchronized Promise<T> error(Runnable func) { return promise.onRejection(func); }
     
     public synchronized <R> Promise<R> asyncComplete(Supplier<Promise<R>> func) { return promise.asyncOnCompletion(func); }
     public synchronized <R> Promise<R> complete(Supplier<R> func) { return promise.onCompletion(func); }
@@ -106,4 +112,30 @@ public class Deferred<T> {
     public static <T> Deferred<T> threadInit(Consumer<Consumer<T>> initializer){
     	return new Deferred<T>(Promise.threadInit(initializer));
     }
+    
+    /** Only included for interface implementation. Deferred cannot be canceled. Will always return false. */
+    @Override
+	public boolean cancel(boolean mayInterruptIfRunning) {
+		return promise.cancel(mayInterruptIfRunning);
+	}
+    /** Only included for interface implementation. Deferred cannot be canceled. Will always return false. */
+	@Override
+	public boolean isCancelled() {
+		return promise.isCancelled();
+	}
+	/** Added for interface implementation. Equivalent to isComplete. */
+	@Override
+	public boolean isDone() {
+		return promise.isDone();
+	}
+	/** Added for interface implementation. Equivalent to await */
+	@Override
+	public T get() throws InterruptedException, ExecutionException {
+		return promise.get();
+	}
+	/** Added for interface implementation. Equivalent to await */
+	@Override
+	public T get(long timeout, TimeUnit unit) throws InterruptedException, ExecutionException, TimeoutException {
+		return promise.get(timeout, unit);
+	}
 }

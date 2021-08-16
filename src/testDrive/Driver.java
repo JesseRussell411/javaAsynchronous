@@ -228,11 +228,10 @@ public class Driver {
 		new Thread(() -> { try { Async.execute(); } catch(InterruptedException e) {} }, "execution thread 3").start();
 		
 		// awaiting promise instead of calling them. unlike javascript, java can block.
-		new Thread(() -> { try { System.out.println(slowPromise.await() + "from steve"); } catch(InterruptedException e) {} }, "steve").start();
-		new Thread(() -> { try { System.out.println(slowPromise.await() + "from steve2"); } catch(InterruptedException e) {} }, "steve2").start();
-		new Thread(() -> { try { System.out.println(slowPromise.await() + "from steve3"); } catch(InterruptedException e) {} }, "steve3").start();
-		System.out.println(slowPromise.await());
-		System.out.println(slowPromise.await());
+		new Thread(() -> { try { System.out.println(slowPromise.await() + "from steve"); } catch(Exception e) {} }, "steve").start();
+		new Thread(() -> { try { System.out.println(slowPromise.await() + "from steve2"); } catch(Exception e) {} }, "steve2").start();
+		new Thread(() -> { try { System.out.println(slowPromise.await() + "from steve3"); } catch(Exception e) {} }, "steve3").start();
+		try{System.out.println(slowPromise.await());}catch(Exception e) {};
 		
 		
 		// lets try something different
@@ -243,7 +242,7 @@ public class Driver {
 					System.out.println(slowAddSpecific.apply(0.1, 0.2, (long)rand.nextInt(5000)).await());
 				}
 			}
-			catch(InterruptedException e) {}
+			catch(Exception e) {}
 		}, "supplier 1").start();
 		
 		new Thread(() -> {
@@ -252,7 +251,7 @@ public class Driver {
 					System.out.println(slowAddSpecific.apply(0.1, 0.6, (long)rand.nextInt(5000)).await());
 				}
 			}
-			catch(InterruptedException e) {}
+			catch(Exception e) {}
 		}, "supplier 2").start();
 		
 		new Thread(() -> {
@@ -261,7 +260,7 @@ public class Driver {
 					System.out.println(slowAddSpecific.apply(6.1, 0.6, (long)rand.nextInt(5000)).await());
 				}
 			}
-			catch(InterruptedException e) {}
+			catch(Exception e) {}
 		}, "supplier 3").start();
 		
 		new Thread(() -> { try { while(true) { Async.execute();} } catch(InterruptedException e) {} }, "execution loop 1").start();

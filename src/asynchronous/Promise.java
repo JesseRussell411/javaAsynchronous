@@ -1,6 +1,11 @@
 package asynchronous;
 import java.util.LinkedList;
 import java.util.Queue;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.*;
 
 import exceptionsPlus.UncheckedWrapper;
@@ -8,7 +13,7 @@ import exceptionsPlus.UncheckedWrapper;
  *
  * @author jesse
  */
-public class Promise<T> {
+public class Promise<T> implements Future<T> {
 	// queue of functions to run on resolution (like the try block in try/catch)
     private final Queue<Consumer<T>> thenQueue = new LinkedList<>();
     private final Queue<Promise<?>> thenPromises = new LinkedList<>();
@@ -150,7 +155,7 @@ public class Promise<T> {
         notifyAll();
     }
     
-    public synchronized T await() throws InterruptedException, UncheckedWrapper {
+    public synchronized T await() throws InterruptedException, Exception {
     	notify();
     	while(!resolved && !rejected) {
     		wait();
@@ -160,8 +165,36 @@ public class Promise<T> {
     		return result;
     	}
     	else {
-    		throw new UncheckedWrapper(exception);
+    		throw exception;
     	}
+    }
+    
+    public synchronized T await(long millisecondTimeout, int nanoSecondTimeout) throws InterruptedException, TimeoutException, Exception {
+    	AtomicBoolean timedOut = new AtomicBoolean(false);
+    	
+    	Timing.setTimeout(() ->{
+    		timedOut.set(true);
+    		notify();
+    	}, millisecondTimeout, nanoSecondTimeout);
+    	
+    	notify();
+    	while(!(resolved || rejected || timedOut.get())) {
+    		wait();
+    	}
+    	
+    	if (timedOut.get()) {
+    		throw new TimeoutException();
+    	}
+    	else if (resolved) {
+    		return result;
+    	}
+    	else {
+    		throw exception;
+    	}
+    }
+    
+    public synchronized T await(long milliseconedTimeout) throws InterruptedException, Exception {
+    	return await(milliseconedTimeout, 0);
     }
 
     // o----------------------------------o
@@ -192,7 +225,7 @@ public class Promise<T> {
     			try {
 	    			final var funcProm = func.apply(r);
 	    			funcProm.then(r2 -> {resolve.accept(r2);});
-	    			funcProm.onError(e -> {reject.accept(e);});
+	    			funcProm.onRejection(e -> {reject.accept(e);});
     			}
     			catch (Exception e) {
     				reject.accept(e);
@@ -206,7 +239,7 @@ public class Promise<T> {
     	return prom;
     }
     
-    public synchronized Promise<T> onError(Consumer<Exception> func) {
+    public synchronized Promise<T> onRejection(Consumer<Exception> func) {
     	final var prom = new Promise<T>((resolve, reject) -> {
     		onErrorQueue.add(e -> {
     			try {
@@ -228,13 +261,13 @@ public class Promise<T> {
     	return prom;
     }
     
-    public synchronized <R> Promise<R> asyncOnError(Function<Exception, Promise<R>> func) {
+    public synchronized <R> Promise<R> asyncOnRejection(Function<Exception, Promise<R>> func) {
     	final var prom = new Promise<R>((resolve, reject) -> {
     		onErrorQueue.add(e -> {
     			try {
 	    			final var prom2 = func.apply(e);
 	    			prom2.then(r -> {resolve.accept(r);});
-	    			prom2.onError(e2 -> {reject.accept(e2);});
+	    			prom2.onRejection(e2 -> {reject.accept(e2);});
     			}
     			catch(Exception e2) {
     				reject.accept(e2);
@@ -271,7 +304,7 @@ public class Promise<T> {
     			try {
 	    			final var funcProm = func.get();
 	    			funcProm.then(r2 -> {resolve.accept(r2);});
-	    			funcProm.onError(e -> {reject.accept(e);});
+	    			funcProm.onRejection(e -> {reject.accept(e);});
     			}
     			catch (Exception e) {
     				reject.accept(e);
@@ -310,14 +343,14 @@ public class Promise<T> {
         });
     }
     
-    public synchronized Promise<T> onError(Runnable func) {
-    	return onError(e -> {
+    public synchronized Promise<T> onRejection(Runnable func) {
+    	return onRejection(e -> {
     		func.run();
     	});
     }
     
-    public synchronized <R> Promise<R> asyncOnError(Supplier<Promise<R>> func) {
-        return asyncOnError((e) -> {
+    public synchronized <R> Promise<R> asyncOnRejection(Supplier<Promise<R>> func) {
+        return asyncOnRejection((e) -> {
             return func.get();
         });
     }
@@ -389,4 +422,71 @@ public class Promise<T> {
     		}
     	}).start());
     }
+    
+    public static <T> Promise<T> fromFuture(Future<T> future){
+    	return Promise.threadInit((resolve, reject) -> {
+    		try {
+    			resolve.accept(future.get());
+    		}
+    		catch(ExecutionException ee) {
+    			if (ee instanceof Exception) {
+    				reject.accept((Exception)ee);
+    			}
+    			else {
+    				reject.accept(ee);
+    			}
+    		}
+    		catch(Exception e) {
+    			reject.accept(e);
+    		}
+    	});
+    }
+    
+    // o------------------------o
+    // | interface integration: |
+    // o------------------------o
+    /** Only included for interface implementation. Promises cannot be canceled. Will always return false. */
+    @Override
+	public boolean cancel(boolean mayInterruptIfRunning) {
+		return false;
+	}
+    /** Only included for interface implementation. Promises cannot be canceled. Will always return false. */
+	@Override
+	public boolean isCancelled() {
+		return false;
+	}
+	/** Added for interface implementation. Equivalent to isComplete. */
+	@Override
+	public boolean isDone() {
+		return isComplete();
+	}
+	/** Added for interface implementation. Equivalent to await */
+	@Override
+	public T get() throws InterruptedException, ExecutionException {
+		try {
+			return await();
+		}
+		catch (InterruptedException ie) {
+			throw ie;
+		}
+		catch (Exception e){
+			throw new ExecutionException(e);
+		}
+	}
+	/** Added for interface implementation. Equivalent to await */
+	@Override
+	public T get(long timeout, TimeUnit unit) throws InterruptedException, ExecutionException, TimeoutException {
+		try {
+			return await(unit.toNanos(timeout) / 1000, (int)(unit.toNanos(timeout) % 1000));
+		}
+		catch (InterruptedException ie) {
+			throw ie;
+		}
+		catch(TimeoutException te) {
+			throw te;
+		}
+		catch(Exception e) {
+			throw new ExecutionException(e);
+		}
+	}
 }
