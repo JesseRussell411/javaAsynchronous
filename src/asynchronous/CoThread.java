@@ -4,10 +4,7 @@ import java.util.function.Consumer;
 import java.util.function.Supplier;
 
 
-
-
-
-public class CoThread<T> implements AutoCloseable, Supplier<Promise<CoThread.Result<T>>> {
+public class CoThread<T> implements AutoCloseable, Supplier<Promise<Boolean>> {
 	private CoThreadHolder<T> threadHolder;
 	public boolean notComplete() { return threadHolder.notComplete(); }
 	public boolean isComplete() { return threadHolder.isComplete(); }
@@ -15,6 +12,7 @@ public class CoThread<T> implements AutoCloseable, Supplier<Promise<CoThread.Res
 	public boolean started() { return threadHolder.started(); }
 	public boolean closed() { return threadHolder.closed(); }
 	public String getName() { return threadHolder.getName(); }
+	public T getResult() { return threadHolder.getResult(); }
 	
 	public CoThread(Consumer<Consumer<T>> routine, String name) { threadHolder = new CoThreadHolder<>(routine, name); }
 	public CoThread(Consumer<Consumer<T>> routine) { threadHolder = new CoThreadHolder<>(routine); }
@@ -24,8 +22,8 @@ public class CoThread<T> implements AutoCloseable, Supplier<Promise<CoThread.Res
 		return this;
 	}
 	
-	public Result<T> await() { return threadHolder.await(); }
-	public Promise<Result<T>> get() { return threadHolder.get(); }
+	public boolean await() { return threadHolder.await(); }
+	public Promise<Boolean> get() { return threadHolder.get(); }
 	
 	@Override
 	public void finalize() throws Exception {
@@ -51,7 +49,7 @@ public class CoThread<T> implements AutoCloseable, Supplier<Promise<CoThread.Res
 	
 	
 	private static class CoThreadHolder<T> implements AutoCloseable{
-		private Promise<Result<T>> promise = null;
+		private Promise<Boolean> promise = null;
 		private boolean threadPaused = false;
 		private boolean complete = false;
 		private boolean errored = false;
@@ -63,6 +61,7 @@ public class CoThread<T> implements AutoCloseable, Supplier<Promise<CoThread.Res
 		private RuntimeException exception = null;
 		
 		public String getName() { return name; }
+		public T getResult() { return result; }
 		
 		
 		@SuppressWarnings("serial")
@@ -70,7 +69,7 @@ public class CoThread<T> implements AutoCloseable, Supplier<Promise<CoThread.Res
 		
 		private synchronized void yield(T result) {
 			// handle result
-			if (promise != null) { promise.resolve(new Result<T>(this.result)); }
+			if (promise != null) { promise.resolve(true); }
 			this.result = result;
 			
 			// wait for next await or get call
@@ -112,8 +111,9 @@ public class CoThread<T> implements AutoCloseable, Supplier<Promise<CoThread.Res
 						}
 					}
 					catch(InterruptedException e) {
+						// interruption while waiting for first await or get
 						complete = true;
-						if (promise != null) { promise.resolve(null); }
+						if (promise != null) { promise.resolve(false); }
 						notify();
 						return;
 					}
@@ -136,7 +136,7 @@ public class CoThread<T> implements AutoCloseable, Supplier<Promise<CoThread.Res
 					
 					// routine is complete (or interrupted)
 					complete = true;
-					if (promise != null) { promise.resolve(null); }
+					if (promise != null) { promise.resolve(false); }
 					notify();
 				}
 			};
@@ -181,7 +181,7 @@ public class CoThread<T> implements AutoCloseable, Supplier<Promise<CoThread.Res
 			}
 		}
 		
-		public synchronized Promise<Result<T>> get() {
+		public synchronized Promise<Boolean> get() {
 			if (!started()) { throw new CoThreadNotStartedException(); }
 			promise = new Promise<>();
 			
@@ -192,7 +192,7 @@ public class CoThread<T> implements AutoCloseable, Supplier<Promise<CoThread.Res
 			return promise;
 		}
 		
-		public synchronized Result<T> await() throws RuntimeException, UncheckedInterruptedException {
+		public synchronized boolean await() throws RuntimeException, UncheckedInterruptedException {
 			if (!started()) { throw new CoThreadNotStartedException(); }
 			promise = null;
 			
@@ -211,10 +211,10 @@ public class CoThread<T> implements AutoCloseable, Supplier<Promise<CoThread.Res
 				if (errored) {
 					throw exception;
 				}
-				return null;
+				return false;
 			}
 			else {
-				return new Result<T>(result);
+				return true;
 			}
 		}
 		
