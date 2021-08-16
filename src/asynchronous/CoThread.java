@@ -4,7 +4,7 @@ import java.util.function.Consumer;
 import java.util.function.Supplier;
 
 
-public class CoThread<T> implements AutoCloseable, Supplier<Promise<Boolean>> {
+public class CoThread<T> implements AutoCloseable {
 	private CoThreadHolder<T> threadHolder;
 	public boolean notComplete() { return threadHolder.notComplete(); }
 	public boolean isComplete() { return threadHolder.isComplete(); }
@@ -22,8 +22,18 @@ public class CoThread<T> implements AutoCloseable, Supplier<Promise<Boolean>> {
 		return this;
 	}
 	
-	public boolean await() { return threadHolder.await(); }
-	public Promise<Boolean> get() { return threadHolder.get(); }
+	/** 
+	 * run CoThread. Blocking until yield. 
+	 * @return If true: The CoThread yielded. If a result was returned, it can be accessed with getResult. If false: the coThread ran to the end of it's function and is complete.
+	 * */
+	public boolean await() throws RuntimeException, UncheckedInterruptedException { return threadHolder.await(); }
+	/** 
+	 * run CoThread.
+	 * @return Promise that resolved to the status of the run. The promise may reject with a RuntimeException thrown inside of the CoThread's function.
+	 * If true: The CoThread yielded. If a result was returned, it can be accessed with getResult.
+	 * If false: the coThread ran to the end of it's function and is complete.
+	 * */
+	public Promise<Boolean> run() { return threadHolder.get(); }
 	
 	@Override
 	public void finalize() throws Exception {

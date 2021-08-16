@@ -184,7 +184,7 @@ public class Async<T> implements Supplier<Promise<T>> {
 	}
 	
 	// Await functional class for awaiting promises in an Async functional class.
-	public static class Await {
+	public static class Await{
 		private final Consumer<Promise<?>> yield;
 		
 		// can't be instantiated by the user. Only Async and itself (but only Async should)
@@ -202,7 +202,7 @@ public class Async<T> implements Supplier<Promise<T>> {
 		 */
 		public <E> E apply(Promise<E> promise) throws UncheckedWrapper {
 			// yield to Async.execute. wait for the promise to complete. Async.execute will take care of that.
-			yield.accept((Promise<?>)promise);
+			yield.accept(promise);
 			
 			// at this point yield has stopped blocking which should mean that the promise is complete.
 			if (promise.isRejected()) {
