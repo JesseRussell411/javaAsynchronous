@@ -7,8 +7,6 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.*;
-
-import exceptionsPlus.UncheckedWrapper;
 /**
  *
  * @author jesse
@@ -155,10 +153,15 @@ public class Promise<T> implements Future<T> {
         notifyAll();
     }
     
-    public synchronized T await() throws InterruptedException, Exception {
+    public synchronized T await() throws UncheckedInterruptedException, Exception {
     	notify();
-    	while(!resolved && !rejected) {
-    		wait();
+    	try {
+	    	while(!resolved && !rejected) {
+	    		wait();
+	    	}
+    	}
+    	catch (InterruptedException ie) {
+    		throw new UncheckedInterruptedException(ie);
     	}
     	
     	if (resolved) {
@@ -169,7 +172,7 @@ public class Promise<T> implements Future<T> {
     	}
     }
     
-    public synchronized T await(long millisecondTimeout, int nanoSecondTimeout) throws InterruptedException, TimeoutException, Exception {
+    public synchronized T await(long millisecondTimeout, int nanoSecondTimeout) throws UncheckedInterruptedException, TimeoutException, Exception {
     	AtomicBoolean timedOut = new AtomicBoolean(false);
     	
     	Timing.setTimeout(() ->{
@@ -178,9 +181,15 @@ public class Promise<T> implements Future<T> {
     	}, millisecondTimeout, nanoSecondTimeout);
     	
     	notify();
-    	while(!(resolved || rejected || timedOut.get())) {
-    		wait();
+    	try {
+	    	while(!(resolved || rejected || timedOut.get())) {
+	    		wait();
+	    	}
     	}
+    	catch (InterruptedException ie) {
+    		throw new UncheckedInterruptedException(ie);
+    	}
+    	
     	
     	if (timedOut.get()) {
     		throw new TimeoutException();
@@ -193,7 +202,7 @@ public class Promise<T> implements Future<T> {
     	}
     }
     
-    public synchronized T await(long milliseconedTimeout) throws InterruptedException, Exception {
+    public synchronized T await(long milliseconedTimeout) throws UncheckedInterruptedException, Exception {
     	return await(milliseconedTimeout, 0);
     }
 
@@ -442,9 +451,9 @@ public class Promise<T> implements Future<T> {
     	});
     }
     
-    // o------------------------o
-    // | interface integration: |
-    // o------------------------o
+    // o-----------------------o
+    // | Interface Compliance: |
+    // o-----------------------o
     /** Only included for interface implementation. Promises cannot be canceled. Will always return false. */
     @Override
 	public boolean cancel(boolean mayInterruptIfRunning) {
@@ -466,8 +475,8 @@ public class Promise<T> implements Future<T> {
 		try {
 			return await();
 		}
-		catch (InterruptedException ie) {
-			throw ie;
+		catch (UncheckedInterruptedException uie) {
+			throw uie.getOriginal();
 		}
 		catch (Exception e){
 			throw new ExecutionException(e);
@@ -479,8 +488,8 @@ public class Promise<T> implements Future<T> {
 		try {
 			return await(unit.toNanos(timeout) / 1000, (int)(unit.toNanos(timeout) % 1000));
 		}
-		catch (InterruptedException ie) {
-			throw ie;
+		catch (UncheckedInterruptedException uie) {
+			throw uie.getOriginal();
 		}
 		catch(TimeoutException te) {
 			throw te;

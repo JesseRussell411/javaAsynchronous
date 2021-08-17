@@ -79,9 +79,9 @@ public class Deferred<T> implements Future<T>{
 		}
 	}
 	
-	public T await() throws InterruptedException, Exception { return promise.await(); }
-	public T await(long millisecondTimeout) throws InterruptedException, Exception { return promise.await(millisecondTimeout); }
-	public T await(long millisecondTimeout, int nanoSecondTimeout) throws InterruptedException, Exception { return promise.await(millisecondTimeout, nanoSecondTimeout); }
+	public T await() throws UncheckedInterruptedException, Exception { return promise.await(); }
+	public T await(long millisecondTimeout) throws UncheckedInterruptedException, Exception { return promise.await(millisecondTimeout); }
+	public T await(long millisecondTimeout, int nanoSecondTimeout) throws UncheckedInterruptedException, Exception { return promise.await(millisecondTimeout, nanoSecondTimeout); }
 	
 	// o----------------------------o
     // | Then, Error, and Complete: |
@@ -113,6 +113,9 @@ public class Deferred<T> implements Future<T>{
     	return new Deferred<T>(Promise.threadInit(initializer));
     }
     
+    // o-----------------------o
+    // | Interface Compliance: |
+    // o-----------------------o
     /** Only included for interface implementation. Deferred cannot be canceled. Will always return false. */
     @Override
 	public boolean cancel(boolean mayInterruptIfRunning) {
