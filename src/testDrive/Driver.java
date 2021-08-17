@@ -223,9 +223,9 @@ public class Driver {
 		var slowPromise = slowAdd.apply(0.1, 0.2);
 		
 		// multiple execution threads? Why not!
-		new Thread(() -> { try { Async.execute(); } catch(InterruptedException e) {} }, "execution thread 1").start();
-		new Thread(() -> { try { Async.execute(); } catch(InterruptedException e) {} }, "execution thread 2").start();
-		new Thread(() -> { try { Async.execute(); } catch(InterruptedException e) {} }, "execution thread 3").start();
+		new Thread(() -> { Async.execute(); }, "execution thread 1").start();
+		new Thread(() -> { Async.execute(); }, "execution thread 2").start();
+		new Thread(() -> { Async.execute(); }, "execution thread 3").start();
 		
 		// awaiting promise instead of calling them. unlike javascript, java can block.
 		new Thread(() -> { try { System.out.println(slowPromise.await() + "from steve"); } catch(Exception e) {} }, "steve").start();
@@ -234,38 +234,42 @@ public class Driver {
 		try{System.out.println(slowPromise.await());}catch(Exception e) {};
 		
 		
-		// lets try something different
-		var rand = new Random();
-		new Thread(() -> {
+		
+		//CoThread run test
+		CoThread<Integer> numberGiver = new CoThread<>((yield) -> {
 			try {
-				while(true) {
-					System.out.println(slowAddSpecific.apply(0.1, 0.2, (long)rand.nextInt(5000)).await());
+				for(int i = 1; i <= 5; ++i) {
+					Thread.sleep(500);
+					yield.accept(i);
 				}
 			}
-			catch(Exception e) {}
-		}, "supplier 1").start();
+			catch (InterruptedException e) {}
+		});
+		numberGiver.start();
 		
-		new Thread(() -> {
+		final var numberGetter = new AsyncVoid((await) -> {
 			try {
-				while(true) {
-					System.out.println(slowAddSpecific.apply(0.1, 0.6, (long)rand.nextInt(5000)).await());
+				for(;;) {
+					final var numPromise = numberGiver.run();
+					final var num = await.apply(numPromise);
+					System.out.println(num);
 				}
 			}
-			catch(Exception e) {}
-		}, "supplier 2").start();
-		
-		new Thread(() -> {
-			try {
-				while(true) {
-					System.out.println(slowAddSpecific.apply(6.1, 0.6, (long)rand.nextInt(5000)).await());
+			catch (UncheckedWrapper uw) {
+				Exception e = uw.getOriginal();
+				
+				if (e instanceof CoThreadCompleteException cce) {
+					System.out.println("Number Giver out of numbers");
 				}
+				else { throw uw; }
 			}
-			catch(Exception e) {}
-		}, "supplier 3").start();
+		});
 		
-		new Thread(() -> { try { while(true) { Async.execute();} } catch(InterruptedException e) {} }, "execution loop 1").start();
-		new Thread(() -> { try { while(true) { Async.execute();} } catch(InterruptedException e) {} }, "execution loop 2").start();
-		new Thread(() -> { try { while(true) { Async.execute();} } catch(InterruptedException e) {} }, "execution loop 3").start();
-		new Thread(() -> { try { while(true) { Async.execute();} } catch(InterruptedException e) {} }, "execution loop 4").start();
+		
+		numberGetter.get();
+		
+		new Thread(() ->{
+			Async.execute();
+		}).start();
 	}
 }

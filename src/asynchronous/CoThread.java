@@ -1,7 +1,7 @@
 package asynchronous;
 
+
 import java.util.function.Consumer;
-import java.util.function.Supplier;
 
 
 public class CoThread<T> implements AutoCloseable {
@@ -27,13 +27,13 @@ public class CoThread<T> implements AutoCloseable {
 	 * @return If true: The CoThread yielded. If a result was returned, it can be accessed with getResult. If false: the coThread ran to the end of it's function and is complete.
 	 * */
 	public boolean await() throws RuntimeException, UncheckedInterruptedException { return threadHolder.await(); }
+	
 	/** 
-	 * run CoThread.
-	 * @return Promise that resolved to the status of the run. The promise may reject with a RuntimeException thrown inside of the CoThread's function.
-	 * If true: The CoThread yielded. If a result was returned, it can be accessed with getResult.
-	 * If false: the coThread ran to the end of it's function and is complete.
+	 * run CoThread and return a promise that completes when the CoThread is done running. If the CoThread is already running: just returns the promise.
+	 * @return Promise that resolved to the result of the run. If the CoThread completes: the promise will be rejected with a CoThreadCompleteException.
+	 * If any other Exception is thrown in the CoThread: the promise will be rejected with the thrown Exception.
 	 * */
-	public Promise<Boolean> run() { return threadHolder.get(); }
+	public Promise<T> run() { return threadHolder.run(); }
 	
 	@Override
 	public void finalize() throws Exception {
@@ -59,7 +59,7 @@ public class CoThread<T> implements AutoCloseable {
 	
 	
 	private static class CoThreadHolder<T> implements AutoCloseable{
-		private Promise<Boolean> promise = null;
+		private Promise<T> promise = null;
 		private boolean threadPaused = false;
 		private boolean complete = false;
 		private boolean errored = false;
@@ -70,6 +70,28 @@ public class CoThread<T> implements AutoCloseable {
 		private T result = null;
 		private RuntimeException exception = null;
 		
+		/**
+		 * Completes the promise (if run has been called at some point). Returns a promise.
+		 * @returns Promise to be resolved when the CoThread yields.
+		 * If the CoThread completes instead of yielding: the promise will be rejected with CoThreadCompleteException.
+		 * If any other Exception is thrown in the CoThread. The promise will reject with that exception.
+		 */
+		private synchronized void CompletePromise() {
+			if (promise == null) {
+				return;
+			}
+			else if (errored) {
+				promise.reject(exception);
+			}
+			else if (complete){
+				promise.reject(new CoThreadCompleteException());
+			}
+			else {
+				promise.resolve(result);
+			}
+			promise = null;
+		}
+		
 		public String getName() { return name; }
 		public T getResult() { return result; }
 		
@@ -79,8 +101,10 @@ public class CoThread<T> implements AutoCloseable {
 		
 		private synchronized void yield(T result) {
 			// handle result
-			if (promise != null) { promise.resolve(true); }
 			this.result = result;
+			
+			// handle promises
+			CompletePromise();
 			
 			// wait for next await or get call
 			threadPaused = true;
@@ -123,7 +147,7 @@ public class CoThread<T> implements AutoCloseable {
 					catch(InterruptedException e) {
 						// interruption while waiting for first await or get
 						complete = true;
-						if (promise != null) { promise.resolve(false); }
+						CompletePromise();
 						notify();
 						return;
 					}
@@ -134,19 +158,18 @@ public class CoThread<T> implements AutoCloseable {
 					}
 					catch(YieldInterruptedException e) {}
 					catch(RuntimeException e) {
+						threadPaused = true;
+						complete = true;
 						errored = true;
 						exception = e;
-						complete = true;
-						if (promise != null) {
-							promise.reject(e);
-						}
+						CompletePromise();
 						notify();
 						return;
 					}
 					
 					// routine is complete (or interrupted)
 					complete = true;
-					if (promise != null) { promise.resolve(false); }
+					CompletePromise();
 					notify();
 				}
 			};
@@ -191,20 +214,24 @@ public class CoThread<T> implements AutoCloseable {
 			}
 		}
 		
-		public synchronized Promise<Boolean> get() {
+		public synchronized Promise<T> run() {
 			if (!started()) { throw new CoThreadNotStartedException(); }
-			promise = new Promise<>();
 			
 			threadPaused = false;
 			notify();
 			
-			// don't wait
+			// don't wait, return a promise instead
+			if (promise == null) { promise = new Promise<>(); }
+			
+			if (complete) {
+				promise.reject(new CoThreadCompleteException());
+			}
 			return promise;
+			
 		}
 		
 		public synchronized boolean await() throws RuntimeException, UncheckedInterruptedException {
 			if (!started()) { throw new CoThreadNotStartedException(); }
-			promise = null;
 			
 			threadPaused = false;
 			notify();

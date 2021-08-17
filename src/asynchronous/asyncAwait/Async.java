@@ -77,7 +77,7 @@ public class Async<T> implements Supplier<Promise<T>> {
 	 * Runs all Async instances in the execution queue.
 	 * @throws InterruptedException
 	 */
-	public static void execute() throws InterruptedException{
+	public static void execute() throws UncheckedInterruptedException{
 		// execution loop
 		do {
 			Async<?>.CalledInstance instance;
@@ -89,8 +89,13 @@ public class Async<T> implements Supplier<Promise<T>> {
 			// Wait for the execution queue to be enqueued with something to run
 			// or for there to be no running instances.
 			synchronized(executeWaitLock) {
-				while(runningInstanceCount.get() > 0 && executionQueue.isEmpty()) {
-					executeWaitLock.wait();
+				try {
+					while(runningInstanceCount.get() > 0 && executionQueue.isEmpty()) {
+						executeWaitLock.wait();
+					}
+				}
+				catch(InterruptedException ie) {
+					throw new UncheckedInterruptedException(ie);
 				}
 			}
 			
@@ -118,14 +123,11 @@ public class Async<T> implements Supplier<Promise<T>> {
 			deferred.reject(exception);
 		}
 		public T getResult() { return result; }
-		public void execute() throws InterruptedException {
+		public void execute() throws UncheckedInterruptedException {
 			boolean coThreadYielded = false;
 			Exception exception = null;
 			try {
 				coThreadYielded = coThread.await();
-			}
-			catch(UncheckedInterruptedException ie) {
-				throw ie.getOriginal();
 			}
 			catch(Exception e) {
 				exception = e;
