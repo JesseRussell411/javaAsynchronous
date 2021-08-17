@@ -10,7 +10,6 @@ public class CoThread<T> implements AutoCloseable {
 	public boolean isComplete() { return threadHolder.isComplete(); }
 	public boolean isErrored() { return threadHolder.isErrored(); }
 	public boolean started() { return threadHolder.started(); }
-	public boolean closed() { return threadHolder.closed(); }
 	public String getName() { return threadHolder.getName(); }
 	public T getResult() { return threadHolder.getResult(); }
 	
@@ -45,7 +44,7 @@ public class CoThread<T> implements AutoCloseable {
 	 * but can interrupted manually by this method if desired. Calling more than once is safe and will do nothing.
 	 */
 	@Override
-	public void close() throws Exception{
+	public void close(){
 		threadHolder.close();
 	}
 	
@@ -64,7 +63,6 @@ public class CoThread<T> implements AutoCloseable {
 		private boolean complete = false;
 		private boolean errored = false;
 		private boolean started = false;
-		private boolean closed = false;
 		private Thread thread = null;
 		private String name = null;
 		private T result = null;
@@ -123,7 +121,6 @@ public class CoThread<T> implements AutoCloseable {
 		public boolean isComplete() { return complete; }
 		public boolean isErrored() { return errored; }
 		public boolean started() { return started; }
-		public boolean closed() { return closed; }
 		
 		public CoThreadHolder(Consumer<Consumer<T>> routine, String name) {
 			if (routine == null) { throw new NullPointerException(); }
@@ -257,15 +254,8 @@ public class CoThread<T> implements AutoCloseable {
 		
 		
 		@Override
-		public synchronized void close() throws Exception {
-			if (!complete) {
-				thread.interrupt();
-				notify();
-				while(!complete) {
-					wait();
-				}
-				closed = true;
-			}
+		public synchronized void close() {
+			thread.interrupt();
 		}
 		
 		// for garbage collector

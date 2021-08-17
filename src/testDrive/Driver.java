@@ -244,7 +244,7 @@ public class Driver {
 				}
 			}
 			catch (InterruptedException e) {}
-		});
+		}, "number giver");
 		numberGiver.start();
 		
 		final var numberGetter = new AsyncVoid((await) -> {
@@ -263,7 +263,7 @@ public class Driver {
 				}
 				else { throw uw; }
 			}
-		});
+		}, "number getter");
 		
 		
 		numberGetter.get();
@@ -271,5 +271,8 @@ public class Driver {
 		new Thread(() ->{
 			Async.execute();
 		}).start();
+		
+		Async.execute();
+		numberGiver.close();
 	}
 }

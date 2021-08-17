@@ -2,6 +2,7 @@ package asynchronous.asyncAwait;
 
 import java.util.Queue;
 import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.*;
 
@@ -90,6 +91,7 @@ public class Async<T> implements Supplier<Promise<T>> {
 			// or for there to be no running instances.
 			synchronized(executeWaitLock) {
 				try {
+					executeWaitLock.notify();
 					while(runningInstanceCount.get() > 0 && executionQueue.isEmpty()) {
 						executeWaitLock.wait();
 					}
@@ -102,6 +104,24 @@ public class Async<T> implements Supplier<Promise<T>> {
 			// wait over, if there are no running instances and the executionQueue is empty: 
 			// break and finish execution.
 		} while(!(runningInstanceCount.get() == 0 && executionQueue.isEmpty()));
+	}
+	
+	public static void execute(AtomicBoolean untilTrue) throws UncheckedInterruptedException {
+		boolean firstLoop = true;
+		try {
+			while(!untilTrue.get()) {
+				if (!firstLoop) {
+					Thread.sleep(1);
+				}
+				
+				execute();
+				
+				firstLoop = false;
+			}
+		}
+		catch(InterruptedException ie) {
+			throw new UncheckedInterruptedException(ie);
+		}
 	}
 	
 	
