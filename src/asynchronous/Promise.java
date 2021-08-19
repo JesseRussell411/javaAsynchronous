@@ -1,6 +1,7 @@
 package asynchronous;
 import java.util.LinkedList;
 import java.util.Queue;
+import java.util.concurrent.CancellationException;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
@@ -227,11 +228,11 @@ public class Promise<T> implements Future<T> {
     	return prom;
     }
     
-    public synchronized <R> Promise<R> asyncThen(Function<T, Promise<R>> func) {
+    public synchronized <R> Promise<R> asyncThen(Function<T, Future<R>> func) {
     	final var prom = new Promise<R>((resolve, reject) -> {
     		thenQueue.add(r -> {
     			try {
-	    			final var funcProm = func.apply(r);
+	    			final var funcProm = Promise.fromFuture(func.apply(r));
 	    			funcProm.then(r2 -> {resolve.accept(r2);});
 	    			funcProm.onError(e -> {reject.accept(e);});
     			}
@@ -247,20 +248,15 @@ public class Promise<T> implements Future<T> {
     	return prom;
     }
     
-    public synchronized Promise<T> onError(Consumer<Exception> func) {
-    	final var prom = new Promise<T>((resolve, reject) -> {
+    public synchronized <R> Promise<R> onError(Function<Exception, R> func) {
+    	final var prom = new Promise<R>((resolve, reject) -> {
     		onErrorQueue.add(e -> {
     			try {
-    				func.accept(e);
-    				reject.accept(e);
+    				resolve.accept(func.apply(e));
     			}
     			catch(Exception e2) {
     				reject.accept(e2);
     			}
-    		});
-    		
-    		thenQueue.add(r -> {
-    			resolve.accept(r);
     		});
     	});
 
@@ -269,13 +265,13 @@ public class Promise<T> implements Future<T> {
     	return prom;
     }
     
-    public synchronized <R> Promise<R> asyncOnError(Function<Exception, Promise<R>> func) {
+    public synchronized <R> Promise<R> asyncOnError(Function<Exception, Future<R>> func) {
     	final var prom = new Promise<R>((resolve, reject) -> {
     		onErrorQueue.add(e -> {
     			try {
-	    			final var prom2 = func.apply(e);
-	    			prom2.then(r -> {resolve.accept(r);});
-	    			prom2.onError(e2 -> {reject.accept(e2);});
+	    			final var funcProm = Promise.fromFuture(func.apply(e));
+	    			funcProm.then(r -> {resolve.accept(r);});
+	    			funcProm.onError(e2 -> {reject.accept(e2);});
     			}
     			catch(Exception e2) {
     				reject.accept(e2);
@@ -306,11 +302,11 @@ public class Promise<T> implements Future<T> {
     	return prom;
     }
     
-    public synchronized <R> Promise<R> asyncOnCompletion(Supplier<Promise<R>> func){
+    public synchronized <R> Promise<R> asyncOnCompletion(Supplier<Future<R>> func){
     	final var prom = new Promise<R>((resolve, reject) -> {
     		onCompletionQueue.add(() -> {
     			try {
-	    			final var funcProm = func.get();
+	    			final var funcProm = Promise.fromFuture(func.get());
 	    			funcProm.then(r2 -> {resolve.accept(r2);});
 	    			funcProm.onError(e -> {reject.accept(e);});
     			}
@@ -326,44 +322,52 @@ public class Promise<T> implements Future<T> {
     }
     
     public synchronized Promise<T> then(Consumer<T> func) {
-        return then((r) -> {
+        return then(r -> {
             func.accept(r);
             return result;
         });
     }
     
     public synchronized Promise<T> then(Runnable func) {
-        return then((r) -> {
+        return then(r -> {
             func.run();
             return result;
         });
     }
     
     public synchronized <R> Promise<R> then(Supplier<R> func) {
-        return then((r) -> {
+        return then(r -> {
             return func.get();
         });
     }
     
-    public synchronized <R> Promise<R> asyncThen(Supplier<Promise<R>> func) {
+    public synchronized <R> Promise<R> asyncThen(Supplier<Future<R>> func) {
         return asyncThen(r -> {
             return func.get();
         });
     }
     
-    public synchronized Promise<T> onError(Runnable func) {
+    public synchronized Promise<Void> onError(Consumer<Exception> func){
     	return onError(e -> {
-    		func.run();
+    		func.accept(e);
+    		return null;
     	});
     }
     
-    public synchronized <R> Promise<R> asyncOnError(Supplier<Promise<R>> func) {
-        return asyncOnError((e) -> {
+    public synchronized Promise<Void> onError(Runnable func) {
+    	return onError(e -> {
+    		func.run();
+    		return null;
+    	});
+    }
+    
+    public synchronized <R> Promise<R> asyncOnError(Supplier<Future<R>> func) {
+        return asyncOnError(e -> {
             return func.get();
         });
     }
     
-    public synchronized Promise<Object> onCompletion(Runnable func){
+    public synchronized Promise<Void> onCompletion(Runnable func){
     	return onCompletion(() -> {
     		func.run();
     		return null;
@@ -431,7 +435,11 @@ public class Promise<T> implements Future<T> {
     	}).start());
     }
     
-    public static <T> Promise<T> fromFuture(Future<T> future){
+    public static <T> Promise<T> fromFuture(Future<T> future, boolean rejectOnCancel){
+    	if (future instanceof Promise<T>) {
+    		return (Promise<T>)future;
+    	}
+    	
     	return Promise.threadInit((resolve, reject) -> {
     		try {
     			resolve.accept(future.get());
@@ -444,10 +452,19 @@ public class Promise<T> implements Future<T> {
     				reject.accept(ee);
     			}
     		}
+    		catch(CancellationException ce) {
+    			if (rejectOnCancel) {
+    				reject.accept(ce);
+    			}
+    		}
     		catch(Exception e) {
     			reject.accept(e);
     		}
     	});
+    }
+    
+    public static <T> Promise<T> fromFuture(Future<T> future){
+    	return fromFuture(future, true);
     }
     
     // o-----------------------o

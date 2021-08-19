@@ -86,21 +86,22 @@ public class Deferred<T> implements Future<T>{
 	// o----------------------------o
     // | Then, Error, and Complete: |
     // o----------------------------o
-	public synchronized <R> Promise<R> asyncThen(Function<T, Promise<R>> func) { return promise.asyncThen(func); }
-	public synchronized <R> Promise<R> asyncThen(Supplier<Promise<R>> func) { return promise.asyncThen(func); }
+	public synchronized <R> Promise<R> asyncThen(Function<T, Future<R>> func) { return promise.asyncThen(func); }
+	public synchronized <R> Promise<R> asyncThen(Supplier<Future<R>> func) { return promise.asyncThen(func); }
     public synchronized <R> Promise<R> then(Function<T, R> func) { return promise.then(func); }
     public synchronized <R> Promise<R> then(Supplier<R> func) { return promise.then(func); }
     public synchronized Promise<T> then(Consumer<T> func) { return promise.then(func); }
     public synchronized Promise<T> then(Runnable func) { return promise.then(func); }
     
-    public synchronized <R> Promise<R> asyncOnRejection(Function<Exception, Promise<R>> func) { return promise.asyncOnError(func); }
-    public synchronized <R> Promise<R> asyncOnRejection(Supplier<Promise<R>> func) { return promise.asyncOnError(func); }    
-    public synchronized Promise<T> onRejection(Consumer<Exception> func) { return promise.onError(func); }
-    public synchronized Promise<T> onRejection(Runnable func) { return promise.onError(func); }
+    public synchronized <R> Promise<R> asyncOnError(Function<Exception, Future<R>> func) { return promise.asyncOnError(func); }
+    public synchronized <R> Promise<R> asyncOnError(Supplier<Future<R>> func) { return promise.asyncOnError(func); }    
+    public synchronized <R> Promise<R> onError(Function<Exception, R> func) { return promise.onError(func); }
+    public synchronized Promise<Void> onError(Consumer<Exception> func) { return promise.onError(func); }
+    public synchronized Promise<Void> onError(Runnable func) { return promise.onError(func); }
     
-    public synchronized <R> Promise<R> asyncOnCompletion(Supplier<Promise<R>> func) { return promise.asyncOnCompletion(func); }
+    public synchronized <R> Promise<R> asyncOnCompletion(Supplier<Future<R>> func) { return promise.asyncOnCompletion(func); }
     public synchronized <R> Promise<R> onCompletion(Supplier<R> func) { return promise.onCompletion(func); }
-    public synchronized Promise<Object> onCompletion(Runnable func) { return promise.onCompletion(func); }
+    public synchronized Promise<Void> onCompletion(Runnable func) { return promise.onCompletion(func); }
     // END Then and Error
     
     // o-------------------o
