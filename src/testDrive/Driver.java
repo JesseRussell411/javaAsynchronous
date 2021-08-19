@@ -256,21 +256,18 @@ public class Driver {
 				}
 			}
 			catch (UncheckedWrapper uw) {
-				Exception e = uw.getOriginal();
-				
-				if (e instanceof CoThreadCompleteException cce) {
-					System.out.println("Number Giver out of numbers");
+				try { throw uw.getOriginal(); }
+				catch (CoThreadCompleteException ctce){
+					System.out.println("CoThread is out of numbers");
 				}
-				else { throw uw; }
+				catch (Exception e) {
+					throw uw;
+				}
 			}
 		}, "number getter");
 		
 		
 		numberGetter.get();
-		
-		new Thread(() ->{
-			Async.execute();
-		}).start();
 		
 		Async.execute();
 		numberGiver.close();

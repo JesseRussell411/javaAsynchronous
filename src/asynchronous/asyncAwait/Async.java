@@ -2,6 +2,7 @@ package asynchronous.asyncAwait;
 
 import java.util.Queue;
 import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.*;
@@ -220,28 +221,45 @@ public class Async<T> implements Supplier<Promise<T>> {
 		 * @param promise
 		 * @return result of promise
 		 * @throws UncheckedWrapper Wrapper around all Exceptions checked and un-checked. Will contain whatever exception was thrown.
-		 * This is the only exception thrown by await.
+		 * This is the only exception thrown by await.apply.
 		 */
 		public <E> E apply(Promise<E> promise) throws UncheckedWrapper {
-			// yield to Async.execute. wait for the promise to complete. Async.execute will take care of that.
-			yield.accept(promise);
-			
-			// at this point yield has stopped blocking which should mean that the promise is complete.
-			if (promise.isRejected()) {
-				if (promise.getException() instanceof UncheckedWrapper) {
-					throw (UncheckedWrapper)promise.getException();
+			try {
+				// yield to Async.execute. wait for the promise to complete. Async.execute will take care of that.
+				yield.accept(promise);
+				
+				// at this point yield has stopped blocking which should mean that the promise is complete.
+				if (promise.isRejected()) {
+					throw promise.getException();
+				}
+				else if (promise.isResolved()) {
+					return promise.getResult();
 				}
 				else {
-					throw new UncheckedWrapper(promise.getException());
+					// if this block runs, something is wrong. Most likely with Async.execute().
+					System.err.println("There is something wrong with Async.execute (most likely). After yielding in Await.apply, the promise is still not complete.");
+					return null;
 				}
 			}
-			else if (promise.isResolved()) {
-				return promise.getResult();
+			catch(Exception e) {
+				throw UncheckedWrapper.uncheckify(e);
 			}
-			else {
-				// if this block runs, something is wrong. Most likely with Async.execute().
-				System.err.println("There is something wrong with Async.execute (most likely). After yielding in Await.apply, the promise is still not complete.");
-				return null;
+		}
+		
+		/**
+		 * Awaits the given future, returning it's result when it's resolved.
+		 * @param <E> The type of the promise.
+		 * @param promise
+		 * @return result of promise
+		 * @throws UncheckedWrapper Wrapper around all Exceptions checked and un-checked. Will contain whatever exception was thrown.
+		 * This is the only exception thrown by await.apply.
+		 */
+		public <E> E apply(Future<E> future) throws UncheckedWrapper{
+			try {
+				return apply(Promise.fromFuture(future));
+			}
+			catch(Exception e) {
+				throw UncheckedWrapper.uncheckify(e);
 			}
 		}
 		

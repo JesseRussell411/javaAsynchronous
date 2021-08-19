@@ -64,6 +64,8 @@ public class Promise<T> implements Future<T> {
         initializer.accept((t) -> resolve(t));
     }
     
+    
+    
     private synchronized <E> void runConsumerQueue(Queue<Consumer<E>> queue, E input) {
     	Consumer<E> func;
     	while((func = queue.poll()) != null) {
