@@ -121,13 +121,10 @@ public class Promise<T> implements Future<T> {
     		throw new ResolutionOfCompletedPromiseException(this);
     	}
     	
-        // cancel if this promise has already been resolved.
-        if (resolved || rejected) {return;}
-        
         // take the result
         this.result = result;
         
-        // set resolved
+        // raise resolved
         resolved = true;
         
         // run then and complete
@@ -145,7 +142,7 @@ public class Promise<T> implements Future<T> {
         // take the result
         this.exception = exception;
         
-        // set resolved
+        // raise rejected
         rejected = true;
         
         // run error and complete
