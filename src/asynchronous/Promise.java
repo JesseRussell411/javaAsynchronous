@@ -321,6 +321,7 @@ public class Promise<T> implements Future<T> {
     	return prom;
     }
     
+    // overloads:
     public synchronized Promise<T> then(Consumer<T> func) {
         return then(r -> {
             func.accept(r);

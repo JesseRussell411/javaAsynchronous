@@ -52,7 +52,7 @@ public class Driver {
 		
 		// in java:
 		//
-		// final var fetchStuffFromServer = new Async1<Integer, Responce>((await, id) -> {
+		// final var fetchStuffFromServer = new Async1<Integer, Response>((await, id) -> {
 		//     return await.apply(httpFetchFunction("http://stuffServer/stuff/" + id));
 		// }
 		//
