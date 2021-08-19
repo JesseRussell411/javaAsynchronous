@@ -233,7 +233,7 @@ public class Promise<T> implements Future<T> {
     			try {
 	    			final var funcProm = func.apply(r);
 	    			funcProm.then(r2 -> {resolve.accept(r2);});
-	    			funcProm.onRejection(e -> {reject.accept(e);});
+	    			funcProm.onError(e -> {reject.accept(e);});
     			}
     			catch (Exception e) {
     				reject.accept(e);
@@ -247,7 +247,7 @@ public class Promise<T> implements Future<T> {
     	return prom;
     }
     
-    public synchronized Promise<T> onRejection(Consumer<Exception> func) {
+    public synchronized Promise<T> onError(Consumer<Exception> func) {
     	final var prom = new Promise<T>((resolve, reject) -> {
     		onErrorQueue.add(e -> {
     			try {
@@ -269,13 +269,13 @@ public class Promise<T> implements Future<T> {
     	return prom;
     }
     
-    public synchronized <R> Promise<R> asyncOnRejection(Function<Exception, Promise<R>> func) {
+    public synchronized <R> Promise<R> asyncOnError(Function<Exception, Promise<R>> func) {
     	final var prom = new Promise<R>((resolve, reject) -> {
     		onErrorQueue.add(e -> {
     			try {
 	    			final var prom2 = func.apply(e);
 	    			prom2.then(r -> {resolve.accept(r);});
-	    			prom2.onRejection(e2 -> {reject.accept(e2);});
+	    			prom2.onError(e2 -> {reject.accept(e2);});
     			}
     			catch(Exception e2) {
     				reject.accept(e2);
@@ -312,7 +312,7 @@ public class Promise<T> implements Future<T> {
     			try {
 	    			final var funcProm = func.get();
 	    			funcProm.then(r2 -> {resolve.accept(r2);});
-	    			funcProm.onRejection(e -> {reject.accept(e);});
+	    			funcProm.onError(e -> {reject.accept(e);});
     			}
     			catch (Exception e) {
     				reject.accept(e);
@@ -351,14 +351,14 @@ public class Promise<T> implements Future<T> {
         });
     }
     
-    public synchronized Promise<T> onRejection(Runnable func) {
-    	return onRejection(e -> {
+    public synchronized Promise<T> onError(Runnable func) {
+    	return onError(e -> {
     		func.run();
     	});
     }
     
-    public synchronized <R> Promise<R> asyncOnRejection(Supplier<Promise<R>> func) {
-        return asyncOnRejection((e) -> {
+    public synchronized <R> Promise<R> asyncOnError(Supplier<Promise<R>> func) {
+        return asyncOnError((e) -> {
             return func.get();
         });
     }

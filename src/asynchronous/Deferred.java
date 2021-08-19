@@ -93,10 +93,10 @@ public class Deferred<T> implements Future<T>{
     public synchronized Promise<T> then(Consumer<T> func) { return promise.then(func); }
     public synchronized Promise<T> then(Runnable func) { return promise.then(func); }
     
-    public synchronized <R> Promise<R> asyncOnRejection(Function<Exception, Promise<R>> func) { return promise.asyncOnRejection(func); }
-    public synchronized <R> Promise<R> asyncOnRejection(Supplier<Promise<R>> func) { return promise.asyncOnRejection(func); }    
-    public synchronized Promise<T> onRejection(Consumer<Exception> func) { return promise.onRejection(func); }
-    public synchronized Promise<T> onRejection(Runnable func) { return promise.onRejection(func); }
+    public synchronized <R> Promise<R> asyncOnRejection(Function<Exception, Promise<R>> func) { return promise.asyncOnError(func); }
+    public synchronized <R> Promise<R> asyncOnRejection(Supplier<Promise<R>> func) { return promise.asyncOnError(func); }    
+    public synchronized Promise<T> onRejection(Consumer<Exception> func) { return promise.onError(func); }
+    public synchronized Promise<T> onRejection(Runnable func) { return promise.onError(func); }
     
     public synchronized <R> Promise<R> asyncOnCompletion(Supplier<Promise<R>> func) { return promise.asyncOnCompletion(func); }
     public synchronized <R> Promise<R> onCompletion(Supplier<R> func) { return promise.onCompletion(func); }
