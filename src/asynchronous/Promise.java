@@ -8,6 +8,8 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.*;
+
+import util.Ref;
 /**
  *
  * @author jesse
@@ -515,4 +517,108 @@ public class Promise<T> implements Future<T> {
 			throw new ExecutionException(e);
 		}
 	}
+	
+	// o--------------------------o
+	// | useful static functions: |
+	// o--------------------------o
+	public static <T> Promise<T> resolved(T value){
+		Promise<T> promise = new Promise<T>();
+		promise.resolve(value);
+		return promise;
+	}
+	public static <T> Promise<T> rejected(Exception exception){
+		Promise<T> promise = new Promise<T>();
+		promise.reject(exception);
+		return promise;
+	}
+	public static Promise<Void> all(Iterable<Promise<?>> promises){
+		return new Promise<Void>((resolve, reject) -> {
+			Ref<Integer> count = new Ref<>(0);
+			Ref<Integer> resolvedCount = new Ref<>(0);
+			Ref<Boolean> countingComplete = new Ref<>(false);
+			Ref<Boolean> isRejected = new Ref<>(false);
+			Ref<Boolean> isResolved = new Ref<>(false);
+			Ref<Exception> rejection = new Ref<>(null);
+			
+			Object lock = new Object();
+			
+			for(Promise<?> p : promises) {
+				// increment count
+				count.set(count.get() + 1);
+				
+				p.then(() -> {
+					// increment resolvedCount
+					resolvedCount.set(resolvedCount.get() + 1);
+					
+					// try for resolve
+					if (countingComplete.get()) {
+						synchronized(lock) {
+							if (!isRejected.get() && !isResolved.get() && resolvedCount.get() == count.get()) {
+								isResolved.set(true);
+								resolve.accept(null);
+							}
+						}
+					}
+				});
+				
+				p.onError(e -> {
+					// try for reject
+					synchronized(lock) {
+						if (rejection.get() == null) {
+							rejection.set(e);
+							
+							if (countingComplete.get()) {
+								isRejected.set(true);
+								reject.accept(e);
+							}
+						}
+					}
+				});
+			}
+			
+			countingComplete.set(true);
+			
+			synchronized(lock) {
+				if (!isResolved.get() && ! isRejected.get()) {
+					if (rejection.get() != null) {
+						isRejected.set(true);
+						reject.accept(rejection.get());
+					}
+			
+					
+					if (resolvedCount.get() == count.get()) {
+						isResolved.set(true);
+						resolve.accept(null);
+					}
+				}
+			}
+		});
+	}
+	
+	public static Promise<?> race(Iterable<Promise<?>> promises){
+		return new Promise<Object>((resolve, reject) -> {			
+			Ref<Boolean> isComplete = new Ref<>(false);
+			Object lock = new Object();
+			
+			for(Promise<?> p : promises) {
+				p.then(r -> {
+					synchronized(lock) {
+						if (!isComplete.get()) {
+							isComplete.set(true);
+							resolve.accept(r);
+						}
+					}
+				});
+				p.onError(e -> {
+					synchronized(lock) {
+						if (!isComplete.get()) {
+							isComplete.set(true);
+							reject.accept(e);
+						}
+					}
+				});
+			}
+		});
+	}
+	
 }
