@@ -31,4 +31,9 @@ public class UncheckedWrapper extends RuntimeException {
 			return new UncheckedWrapper(exception);
 		}
 	}
+	
+	@Override
+	public String toString() {
+		return "Unchecked(Exception)Wrapper: { " + (original == null ? "null" : original.toString()) + " }";
+	}
 }
