@@ -1,4 +1,4 @@
-package util;
+package reference;
 
 /**
  * Insultingly simple class. Stores a reference to a value of type T.

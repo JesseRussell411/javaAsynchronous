@@ -9,7 +9,7 @@ import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.*;
 
-import util.Ref;
+import reference.*;
 /**
  *
  * @author jesse
@@ -533,11 +533,11 @@ public class Promise<T> implements Future<T> {
 	}
 	public static Promise<Void> all(Iterable<Promise<?>> promises){
 		return new Promise<Void>((resolve, reject) -> {
-			Ref<Integer> count = new Ref<>(0);
-			Ref<Integer> resolvedCount = new Ref<>(0);
-			Ref<Boolean> countingComplete = new Ref<>(false);
-			Ref<Boolean> isRejected = new Ref<>(false);
-			Ref<Boolean> isResolved = new Ref<>(false);
+			RefInt count = new RefInt(0);
+			RefInt resolvedCount = new RefInt(0);
+			RefBoolean countingComplete = new RefBoolean(false);
+			RefBoolean isRejected = new RefBoolean(false);
+			RefBoolean isResolved = new RefBoolean(false);
 			Ref<Exception> rejection = new Ref<>(null);
 			
 			Object lock = new Object();
@@ -597,7 +597,7 @@ public class Promise<T> implements Future<T> {
 	
 	public static Promise<?> race(Iterable<Promise<?>> promises){
 		return new Promise<Object>((resolve, reject) -> {			
-			Ref<Boolean> isComplete = new Ref<>(false);
+			RefBoolean isComplete = new RefBoolean(false);
 			Object lock = new Object();
 			
 			for(Promise<?> p : promises) {
