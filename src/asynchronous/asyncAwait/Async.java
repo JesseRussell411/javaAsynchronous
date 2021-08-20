@@ -167,7 +167,7 @@ public class Async<T> implements Supplier<Promise<T>> {
 				
 				// awaitResult contains a promise returned by yield
 				// This promise needs to add the instance back onto the execution queue when it completes.
-				coThread.getResult().onCompletion(() -> {
+				coThread.getResult().onFinally(() -> {
 					asyncAwaitCompleteNofify(this);
 				});
 			}
@@ -194,7 +194,7 @@ public class Async<T> implements Supplier<Promise<T>> {
 			deferred = new Deferred<T>();
 			
 			// add callback to promise that decrements running instance count when the call completes.
-			deferred.onCompletion(() -> {
+			deferred.onFinally(() -> {
 				asyncCompleteNotify();
 			});
 			

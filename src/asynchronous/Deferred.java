@@ -13,13 +13,13 @@ public class Deferred<T> implements Future<T>{
 	public Promise<T> getPromise() { return promise; }
 	public boolean isResolved() { return promise.isResolved(); }
     public boolean isRejected() { return promise.isRejected(); }
-    public boolean isComplete() { return promise.isComplete(); }
+    public boolean isComplete() { return promise.isFinalized(); }
     public T getResult() { return promise.getResult(); }
     public Exception getException() { return promise.getException(); }
 	
 	public boolean resolve(T result) {
 		synchronized(promise) {
-			if (promise.isComplete()) {
+			if (promise.isFinalized()) {
 				return false;
 			}
 			else {
@@ -31,7 +31,7 @@ public class Deferred<T> implements Future<T>{
 	
 	public boolean reject(Exception exception) {
 		synchronized(promise) {
-			if (promise.isComplete()) {
+			if (promise.isFinalized()) {
 				return false;
 			}
 			else {
@@ -43,7 +43,7 @@ public class Deferred<T> implements Future<T>{
 	
 	public boolean resolve(Supplier<T> getResult) {
 		synchronized(promise) {
-			if (promise.isComplete()) {
+			if (promise.isFinalized()) {
 				return false;
 			}
 			else {
@@ -55,7 +55,7 @@ public class Deferred<T> implements Future<T>{
 	
 	public boolean reject(Supplier<Exception> getException) {
 		synchronized(promise) {
-			if (promise.isComplete()) {
+			if (promise.isFinalized()) {
 				return false;
 			}
 			else {
@@ -80,19 +80,19 @@ public class Deferred<T> implements Future<T>{
     public synchronized <R> Promise<R> asyncThen(Supplier<Future<R>> func) { return promise.asyncThen(func); }
     
     
-    public synchronized <R> Promise<R> onError(Function<Exception, R> func) { return promise.onError(func); }
-    public synchronized Promise<Void> onError(Consumer<Exception> func) { return promise.onError(func); }
-    public synchronized Promise<Void> onError(Runnable func) { return promise.onError(func); }
-    public synchronized <R> Promise<R> asyncOnError(Function<Exception, Future<R>> func) { return promise.asyncOnError(func); }
-    public synchronized <R> Promise<R> asyncOnError(Supplier<Future<R>> func) { return promise.asyncOnError(func); }    
+    public synchronized <R> Promise<R> onCatch(Function<Exception, R> func) { return promise.onCatch(func); }
+    public synchronized Promise<Void> onCatch(Consumer<Exception> func) { return promise.onCatch(func); }
+    public synchronized Promise<Void> onCatch(Runnable func) { return promise.onCatch(func); }
+    public synchronized <R> Promise<R> asyncOnCatch(Function<Exception, Future<R>> func) { return promise.asyncOnCatch(func); }
+    public synchronized <R> Promise<R> asyncOnCatch(Supplier<Future<R>> func) { return promise.asyncOnCatch(func); }    
     
-    public synchronized <R> Promise<R> onCompletion(Supplier<R> func) { return promise.onCompletion(func); }
-    public synchronized Promise<Void> onCompletion(Runnable func) { return promise.onCompletion(func); }
-    public synchronized <R> Promise<R> asyncOnCompletion(Supplier<Future<R>> func) { return promise.asyncOnCompletion(func); }
+    public synchronized <R> Promise<R> onFinally(Supplier<R> func) { return promise.onFinally(func); }
+    public synchronized Promise<Void> onFinally(Runnable func) { return promise.onFinally(func); }
+    public synchronized <R> Promise<R> asyncOnFinally(Supplier<Future<R>> func) { return promise.asyncOnFinally(func); }
     
     public synchronized <R> Promise<R> onCancel(Supplier<R> func){
     	return new Promise<R>((resolve, reject) ->  {
-	    	onError(() -> {
+	    	onCatch(() -> {
 	    		if (canceled) {
 	    			try {
 	    				resolve.accept(func.get());
@@ -112,12 +112,12 @@ public class Deferred<T> implements Future<T>{
     }
     public synchronized <R> Promise<R> asyncOnCancel(Supplier<Future<R>> func){
     	return new Promise<R>((resolve, reject) -> {
-    		onError(() -> {
+    		onCatch(() -> {
     			if (canceled) {
     				try {
     					final var funcProm = Promise.fromFuture(func.get());
     					funcProm.then(r -> { resolve.accept(r); });
-    					funcProm.onError(e -> { reject.accept(e); });
+    					funcProm.onCatch(e -> { reject.accept(e); });
     				}
     				catch(Exception e) {
     					reject.accept(e);

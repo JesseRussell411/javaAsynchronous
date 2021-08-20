@@ -27,8 +27,8 @@ public class Promise<T> implements Future<T> {
     private T result = null;
     private Exception exception = null;
     
-    // Whether the promise has been completed (resolved or rejected);
-    public boolean isComplete() { return resolved || rejected; }
+    // Whether the promise has been finalized (resolved or rejected);
+    public boolean isFinalized() { return resolved || rejected; }
     // Whether the promise has been resolved.
     public boolean isResolved() { return resolved; }
     // Whether the promise has been rejected.
@@ -236,7 +236,7 @@ public class Promise<T> implements Future<T> {
     			try {
 	    			final var funcProm = Promise.fromFuture(func.apply(r));
 	    			funcProm.then(r2 -> {resolve.accept(r2);});
-	    			funcProm.onError(e -> {reject.accept(e);});
+	    			funcProm.onCatch(e -> {reject.accept(e);});
     			}
     			catch (Exception e) {
     				reject.accept(e);
@@ -250,7 +250,7 @@ public class Promise<T> implements Future<T> {
     	return prom;
     }
     
-    public synchronized <R> Promise<R> onError(Function<Exception, R> func) {
+    public synchronized <R> Promise<R> onCatch(Function<Exception, R> func) {
     	final var prom = new Promise<R>((resolve, reject) -> {
     		onErrorQueue.add(e -> {
     			try {
@@ -267,13 +267,13 @@ public class Promise<T> implements Future<T> {
     	return prom;
     }
     
-    public synchronized <R> Promise<R> asyncOnError(Function<Exception, Future<R>> func) {
+    public synchronized <R> Promise<R> asyncOnCatch(Function<Exception, Future<R>> func) {
     	final var prom = new Promise<R>((resolve, reject) -> {
     		onErrorQueue.add(e -> {
     			try {
 	    			final var funcProm = Promise.fromFuture(func.apply(e));
 	    			funcProm.then(r -> {resolve.accept(r);});
-	    			funcProm.onError(e2 -> {reject.accept(e2);});
+	    			funcProm.onCatch(e2 -> {reject.accept(e2);});
     			}
     			catch(Exception e2) {
     				reject.accept(e2);
@@ -286,7 +286,7 @@ public class Promise<T> implements Future<T> {
     	return prom;
     }
     
-    public synchronized <R> Promise<R> onCompletion(Supplier<R> func){
+    public synchronized <R> Promise<R> onFinally(Supplier<R> func){
     	final var prom = new Promise<R>((resolve, reject) -> {
     		onCompletionQueue.add(() -> {
     			try {
@@ -304,13 +304,13 @@ public class Promise<T> implements Future<T> {
     	return prom;
     }
     
-    public synchronized <R> Promise<R> asyncOnCompletion(Supplier<Future<R>> func){
+    public synchronized <R> Promise<R> asyncOnFinally(Supplier<Future<R>> func){
     	final var prom = new Promise<R>((resolve, reject) -> {
     		onCompletionQueue.add(() -> {
     			try {
 	    			final var funcProm = Promise.fromFuture(func.get());
 	    			funcProm.then(r2 -> {resolve.accept(r2);});
-	    			funcProm.onError(e -> {reject.accept(e);});
+	    			funcProm.onCatch(e -> {reject.accept(e);});
     			}
     			catch (Exception e) {
     				reject.accept(e);
@@ -350,28 +350,28 @@ public class Promise<T> implements Future<T> {
         });
     }
     
-    public synchronized Promise<Void> onError(Consumer<Exception> func){
-    	return onError(e -> {
+    public synchronized Promise<Void> onCatch(Consumer<Exception> func){
+    	return onCatch(e -> {
     		func.accept(e);
     		return null;
     	});
     }
     
-    public synchronized Promise<Void> onError(Runnable func) {
-    	return onError(e -> {
+    public synchronized Promise<Void> onCatch(Runnable func) {
+    	return onCatch(e -> {
     		func.run();
     		return null;
     	});
     }
     
-    public synchronized <R> Promise<R> asyncOnError(Supplier<Future<R>> func) {
-        return asyncOnError(e -> {
+    public synchronized <R> Promise<R> asyncOnCatch(Supplier<Future<R>> func) {
+        return asyncOnCatch(e -> {
             return func.get();
         });
     }
     
-    public synchronized Promise<Void> onCompletion(Runnable func){
-    	return onCompletion(() -> {
+    public synchronized Promise<Void> onFinally(Runnable func){
+    	return onFinally(() -> {
     		func.run();
     		return null;
     	});
@@ -486,7 +486,7 @@ public class Promise<T> implements Future<T> {
 	/** Added for interface implementation. Equivalent to isComplete. */
 	@Override
 	public boolean isDone() {
-		return isComplete();
+		return isFinalized();
 	}
 	/** Added for interface implementation. Equivalent to await */
 	@Override
@@ -561,7 +561,7 @@ public class Promise<T> implements Future<T> {
 					}
 				});
 				
-				p.onError(e -> {
+				p.onCatch(e -> {
 					// try for reject
 					synchronized(lock) {
 						if (rejection.get() == null) {
@@ -609,7 +609,7 @@ public class Promise<T> implements Future<T> {
 						}
 					}
 				});
-				p.onError(e -> {
+				p.onCatch(e -> {
 					synchronized(lock) {
 						if (!isComplete.get()) {
 							isComplete.set(true);

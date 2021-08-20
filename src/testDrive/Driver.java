@@ -151,6 +151,7 @@ public class Driver {
 				await.apply(runThrowSomethingAsIfItDoesntThrowAnything.get());
 			}
 			catch(UncheckedWrapper uw) {
+				System.err.println(uw.toString());
 				var e = uw.getOriginal();
 				if (e instanceof IndexOutOfBoundsException) {
 					System.out.println("If this text is displayed. Error handing is confused...");
