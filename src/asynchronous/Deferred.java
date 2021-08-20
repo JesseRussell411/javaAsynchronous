@@ -1,4 +1,5 @@
 package asynchronous;
+import java.util.concurrent.CancellationException;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
@@ -6,23 +7,8 @@ import java.util.concurrent.TimeoutException;
 import java.util.function.*;
 
 public class Deferred<T> implements Future<T>{
-	private final Promise<T> promise;
-	
-	private Deferred(Promise<T> promise) {
-		this.promise = promise;
-	}
-	
-	public Deferred(BiConsumer<Consumer<T>, Consumer<Exception>> initializer) {
-		this(new Promise<T>(initializer));
-	}
-
-	public Deferred(Consumer<Consumer<T>> initializer) {
-		this(new Promise<T>(initializer));
-	}
-	
-	public Deferred() {
-		this(new Promise<T>());
-	}
+	private final Promise<T> promise = new Promise<T>();
+	private boolean canceled = false;
 	
 	public Promise<T> getPromise() { return promise; }
 	public boolean isResolved() { return promise.isResolved(); }
@@ -83,49 +69,76 @@ public class Deferred<T> implements Future<T>{
 	public T await(long millisecondTimeout) throws UncheckedInterruptedException, Exception { return promise.await(millisecondTimeout); }
 	public T await(long millisecondTimeout, int nanoSecondTimeout) throws UncheckedInterruptedException, Exception { return promise.await(millisecondTimeout, nanoSecondTimeout); }
 	
-	// o----------------------------o
-    // | Then, Error, and Complete: |
-    // o----------------------------o
-	public synchronized <R> Promise<R> asyncThen(Function<T, Future<R>> func) { return promise.asyncThen(func); }
-	public synchronized <R> Promise<R> asyncThen(Supplier<Future<R>> func) { return promise.asyncThen(func); }
+	// o------------------------------------------o
+    // | then, onError, onComplete, and onCancel: |
+    // o------------------------------------------o
     public synchronized <R> Promise<R> then(Function<T, R> func) { return promise.then(func); }
     public synchronized <R> Promise<R> then(Supplier<R> func) { return promise.then(func); }
     public synchronized Promise<T> then(Consumer<T> func) { return promise.then(func); }
     public synchronized Promise<T> then(Runnable func) { return promise.then(func); }
+    public synchronized <R> Promise<R> asyncThen(Function<T, Future<R>> func) { return promise.asyncThen(func); }
+    public synchronized <R> Promise<R> asyncThen(Supplier<Future<R>> func) { return promise.asyncThen(func); }
     
-    public synchronized <R> Promise<R> asyncOnError(Function<Exception, Future<R>> func) { return promise.asyncOnError(func); }
-    public synchronized <R> Promise<R> asyncOnError(Supplier<Future<R>> func) { return promise.asyncOnError(func); }    
+    
     public synchronized <R> Promise<R> onError(Function<Exception, R> func) { return promise.onError(func); }
     public synchronized Promise<Void> onError(Consumer<Exception> func) { return promise.onError(func); }
     public synchronized Promise<Void> onError(Runnable func) { return promise.onError(func); }
+    public synchronized <R> Promise<R> asyncOnError(Function<Exception, Future<R>> func) { return promise.asyncOnError(func); }
+    public synchronized <R> Promise<R> asyncOnError(Supplier<Future<R>> func) { return promise.asyncOnError(func); }    
     
-    public synchronized <R> Promise<R> asyncOnCompletion(Supplier<Future<R>> func) { return promise.asyncOnCompletion(func); }
     public synchronized <R> Promise<R> onCompletion(Supplier<R> func) { return promise.onCompletion(func); }
     public synchronized Promise<Void> onCompletion(Runnable func) { return promise.onCompletion(func); }
-    // END Then and Error
+    public synchronized <R> Promise<R> asyncOnCompletion(Supplier<Future<R>> func) { return promise.asyncOnCompletion(func); }
     
-    // o-------------------o
-    // | Static Factories: |
-    // o-------------------o
-    public static <T> Deferred<T> threadInit(BiConsumer<Consumer<T>, Consumer<Exception>> initializer){
-    	return new Deferred<T>(Promise.threadInit(initializer));
+    public synchronized <R> Promise<R> onCancel(Supplier<R> func){
+    	return new Promise<R>((resolve, reject) ->  {
+	    	onError(() -> {
+	    		if (canceled) {
+	    			try {
+	    				resolve.accept(func.get());
+	    			}
+	    			catch (Exception e) {
+	    				reject.accept(e);
+	    			}
+	    		}
+	    	});
+    	});
     }
-    public static <T> Deferred<T> threadInit(Consumer<Consumer<T>> initializer){
-    	return new Deferred<T>(Promise.threadInit(initializer));
+    public synchronized Promise<Void> onCancel(Runnable func){
+    	return onCancel(() -> {
+    		func.run();
+    		return null;
+    	});
     }
+    public synchronized <R> Promise<R> asyncOnCancel(Supplier<Future<R>> func){
+    	return new Promise<R>((resolve, reject) -> {
+    		onError(() -> {
+    			if (canceled) {
+    				try {
+    					final var funcProm = Promise.fromFuture(func.get());
+    					funcProm.then(r -> { resolve.accept(r); });
+    					funcProm.onError(e -> { reject.accept(e); });
+    				}
+    				catch(Exception e) {
+    					reject.accept(e);
+    				}
+    			}
+    		});
+    	});
+    }
+    // END then, onError, onCompletion, and onCancel
     
     // o-----------------------o
     // | Interface Compliance: |
     // o-----------------------o
-    /** Only included for interface implementation. Deferred cannot be canceled. Will always return false. */
     @Override
 	public boolean cancel(boolean mayInterruptIfRunning) {
-		return promise.cancel(mayInterruptIfRunning);
+		promise.reject(new CancellationException());
+    	return true;
 	}
-    /** Only included for interface implementation. Deferred cannot be canceled. Will always return false. */
 	@Override
 	public boolean isCancelled() {
-		return promise.isCancelled();
+		return canceled;
 	}
 	/** Added for interface implementation. Equivalent to isComplete. */
 	@Override
