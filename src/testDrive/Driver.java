@@ -277,9 +277,5 @@ public class Driver {
 		
 		Async.execute();
 		numberGiver.close();
-		
-		Task<Integer> getFive = new Task(resolve -> {
-			
-		})
 	}
 }
