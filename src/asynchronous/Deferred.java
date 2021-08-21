@@ -1,4 +1,5 @@
 package asynchronous;
+import java.util.concurrent.CancellationException;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
@@ -6,7 +7,7 @@ import java.util.concurrent.TimeoutException;
 import java.util.function.*;
 
 /** A task which is resolve or rejected with public methods instead of an initializer. */
-public class Deferred<T> implements Future<T>{
+public class Deferred<T> implements Future<T> {
 	// fields:
 	private final Task<T> task;
 	
@@ -110,6 +111,15 @@ public class Deferred<T> implements Future<T>{
 	public boolean cancel(boolean mayInterruptIfRunning) {
 		return task.cancel(mayInterruptIfRunning);
 	}
+    public boolean cancel(String reason, boolean mayInterruptIfRunning) {
+    	return task.cancel(reason, mayInterruptIfRunning);
+    }
+    public boolean cancel(String reason) {
+    	return task.cancel(reason);
+    }
+    public boolean cancel() {
+    	return task.cancel();
+    }
 	@Override
 	public boolean isCancelled() {
 		return task.isCanceled();

@@ -103,11 +103,35 @@ public class Task<T> implements Future<T>{
     // o-----------------------o
     // | Interface Compliance: |
     // o-----------------------o
+    public boolean cancel(String reason, boolean mayInterruptIfRunning) {
+    	if (isFinalized()) {
+    		return false;
+    	}
+    	else {
+			promise.reject(new CancellationException(reason));
+    		return true;
+    	}
+    }
+    
     @Override
-	public boolean cancel(boolean mayInterruptIfRunning) {
-		promise.reject(new CancellationException());
-    	return true;
-	}
+    public boolean cancel(boolean mayInterruptIfRunning) {
+    	if (isFinalized()) {
+    		return false;
+    	}
+    	else {
+			promise.reject(new CancellationException());
+    		return true;
+    	}
+    }
+    private static final boolean mayInterruptIfRunning_DEFAULT = true;
+    public boolean cancel(String reason) {
+    	return cancel(reason, mayInterruptIfRunning_DEFAULT);
+    }
+    
+    public boolean cancel() {
+    	return cancel(mayInterruptIfRunning_DEFAULT);
+    }
+    
 	@Override
 	public boolean isCancelled() {
 		return canceled;
