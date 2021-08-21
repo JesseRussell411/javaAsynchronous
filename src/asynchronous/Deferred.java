@@ -22,6 +22,9 @@ public class Deferred<T> implements Future<T> {
     public Exception getException() { return task.getException(); }
     
     // constructors:
+    Deferred(Task<T> task){
+    	this.task = task;
+    }
 	public Deferred() {
 		task = new Task<T>();
 	}
@@ -88,7 +91,6 @@ public class Deferred<T> implements Future<T> {
     public synchronized <R> Promise<R> asyncThen(Function<T, Future<R>> func) { return task.asyncThen(func); }
     public synchronized <R> Promise<R> asyncThen(Supplier<Future<R>> func) { return task.asyncThen(func); }
     
-    
     public synchronized <R> Promise<R> onCatch(Function<Exception, R> func) { return task.onCatch(func); }
     public synchronized Promise<Void> onCatch(Consumer<Exception> func) { return task.onCatch(func); }
     public synchronized Promise<Void> onCatch(Runnable func) { return task.onCatch(func); }
@@ -99,8 +101,11 @@ public class Deferred<T> implements Future<T> {
     public synchronized Promise<Void> onFinally(Runnable func) { return task.onFinally(func); }
     public synchronized <R> Promise<R> asyncOnFinally(Supplier<Future<R>> func) { return task.asyncOnFinally(func); }
     
+    public synchronized <R> Promise<R> onCancel(Function<CancellationException, R> func){ return task.onCancel(func);}
+    public synchronized Promise<Void> onCancel(Consumer<CancellationException> func){ return task.onCancel(func); }
     public synchronized <R> Promise<R> onCancel(Supplier<R> func){ return task.onCancel(func); }
     public synchronized Promise<Void> onCancel(Runnable func){ return task.onCancel(func); }
+    public synchronized <R> Promise<R> asyncOnCancel(Function<CancellationException, Future<R>> func){ return task.asyncOnCancel(func); }
     public synchronized <R> Promise<R> asyncOnCancel(Supplier<Future<R>> func){ return task.asyncOnCancel(func); }
     // END then, onError, onCompletion, and onCancel
     

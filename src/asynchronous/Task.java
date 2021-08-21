@@ -26,12 +26,15 @@ public class Task<T> implements Future<T>{
     Task(){
     	promise = new Promise<T>();
     }
-	public Task(BiConsumer<Consumer<T>, Consumer<Exception>> initializer, Runnable onCancel) {
+    Task(Promise<T> promise){
+    	this.promise = promise;
+    }
+	public Task(BiConsumer<Consumer<T>, Consumer<Exception>> initializer, Consumer<CancellationException> onCancel) {
 		promise = new Promise<T>(initializer);
 		this.onCancel(onCancel);
 	}
 	
-	public Task(Consumer<Consumer<T>> initializer, Runnable onCancel) {
+	public Task(Consumer<Consumer<T>> initializer, Consumer<CancellationException> onCancel) {
 		promise = new Promise<T>(initializer);
 		this.onCancel(onCancel);
 	}
@@ -62,43 +65,99 @@ public class Task<T> implements Future<T>{
     public synchronized Promise<Void> onFinally(Runnable func) { return promise.onFinally(func); }
     public synchronized <R> Promise<R> asyncOnFinally(Supplier<Future<R>> func) { return promise.asyncOnFinally(func); }
     
-    public synchronized <R> Promise<R> onCancel(Supplier<R> func){
-    	return new Promise<R>((resolve, reject) ->  {
-	    	onCatch(() -> {
-	    		if (canceled) {
-	    			try {
-	    				resolve.accept(func.get());
-	    			}
-	    			catch (Exception e) {
-	    				reject.accept(e);
-	    			}
-	    		}
-	    	});
-    	});
-    }
-    public synchronized Promise<Void> onCancel(Runnable func){
-    	return onCancel(() -> {
-    		func.run();
-    		return null;
-    	});
-    }
-    public synchronized <R> Promise<R> asyncOnCancel(Supplier<Future<R>> func){
+    private static final IllegalStateException wrongCancelException =
+    		new IllegalStateException("A canceled task was rejected with an exception other than CancellationException.");
+    
+    public synchronized <R> Promise<R> onCancel(Function<CancellationException, R> func){
     	return new Promise<R>((resolve, reject) -> {
-    		onCatch(() -> {
+    		onCatch(e -> {
     			if (canceled) {
-    				try {
-    					final var funcProm = Promise.fromFuture(func.get());
-    					funcProm.then(r -> { resolve.accept(r); });
-    					funcProm.onCatch(e -> { reject.accept(e); });
+    				if (e instanceof CancellationException) {
+	    				try {
+	    					resolve.accept(func.apply((CancellationException)e));
+	    				}
+	    				catch(Exception e2) {
+	    					reject.accept(e);
+	    				}
     				}
-    				catch(Exception e) {
-    					reject.accept(e);
+    				else {
+    					throw new Error(wrongCancelException);
     				}
     			}
     		});
     	});
     }
+    public synchronized Promise<Void> onCancel(Consumer<CancellationException> func){
+    	return onCancel(e -> {
+    		func.accept(e);
+    		return null;
+    	});
+    }
+    public synchronized <R> Promise<R> onCancel(Supplier<R> func){
+    	return onCancel(e ->{
+    		return func.get();
+    	});
+    }
+    public synchronized Promise<Void> onCancel(Runnable func){
+    	return onCancel(e -> {
+    		func.run();
+    		return null;
+    	});
+    }
+    public synchronized <R> Promise<R> asyncOnCancel(Function<CancellationException, Future<R>> func){
+    	return new Promise<R>((resolve, reject) -> {
+    		onCatch(e -> {
+    			if (canceled) {
+    				if (e instanceof CancellationException) {
+    					try {
+	    					final var funcPromise = Promise.fromFuture(func.apply((CancellationException)e));
+	    					funcPromise.then(r -> {resolve.accept(r);});
+	    					funcPromise.onCatch(e2 -> {reject.accept(e);});
+    					}
+    					catch(Exception e2) {
+    						reject.accept(e2);
+    					}
+    				}
+    				else {
+    					throw new Error(wrongCancelException);
+    				}
+    			}
+    		});
+    	});
+    }
+    public synchronized <R> Promise<R> asyncOnCancel(Supplier<Future<R>> func){
+    	return asyncOnCancel(ce -> {
+    		return func.get();
+    	});
+    }
     // END then, onError, onCompletion, and onCancel
+    public static <T> Task<T> threadInit(BiConsumer<Consumer<T>, Consumer<Exception>> initializer, Consumer<CancellationException> onCancel){
+    	final var task = new Task<T>();
+    	task.onCancel(onCancel);
+    	
+    	final var thread = new Thread(() -> {
+    		initializer.accept(t -> task.promise.resolve(t), e -> task.promise.reject(e));
+    	});
+    	thread.start();
+    	return task;
+    }
+    public static <T> Task<T> threadInit(Consumer<Consumer<T>> initializer, Consumer<CancellationException> onCancel){
+    	final var task = new Task<T>();
+    	task.onCancel(onCancel);
+    	
+    	final var thread = new Thread(() -> {
+    		initializer.accept(t -> task.promise.resolve(t));
+    	});
+    	thread.start();
+    	return task;
+    }
+    public static <T> Task<T> fromFuture(Future<T> future){
+    	final var task = new Task<T>(Promise.fromFuture(future));
+    	task.onCancel(() -> {
+    		future.cancel(mayInterruptIfRunning_DEFAULT);
+    	});
+    	return task;
+    }
     
     // o-----------------------o
     // | Interface Compliance: |
