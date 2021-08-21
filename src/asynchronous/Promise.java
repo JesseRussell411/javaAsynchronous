@@ -19,9 +19,7 @@ public class Promise<T> implements Future<T> {
     private final Queue<Consumer<T>> thenQueue = new LinkedList<>();
     private final Queue<Promise<?>> thenPromises = new LinkedList<>();
     // queue of functions to run on rejection (like the catch block)
-    private final Queue<Consumer<Exception>> onErrorQueue = new LinkedList<>();
-    // queue of function to run on resolution or rejection (like the finally block)
-    private final Queue<Runnable> onCompletionQueue = new LinkedList<>();
+    private final Queue<Consumer<Exception>> catchQueue = new LinkedList<>();
     private boolean resolved = false;
     private boolean rejected = false;
     private T result = null;
@@ -91,12 +89,12 @@ public class Promise<T> implements Future<T> {
     	thenPromises.clear();
     	
     	// clear the error queue
-    	onErrorQueue.clear();
+    	catchQueue.clear();
     }
     
     private synchronized void handleError() {
     	// run error queue
-    	runConsumerQueue(onErrorQueue, exception);
+    	runConsumerQueue(catchQueue, exception);
     	
     	// reject all then promises
     	Promise<?> prom;
@@ -111,11 +109,9 @@ public class Promise<T> implements Future<T> {
     private synchronized void handleCompletionIfComplete() {
     	if (rejected) {
     		handleError();
-    		runRunnableQueue(onCompletionQueue);
     	}
     	else if (resolved) {
     		handleThen();
-    		runRunnableQueue(onCompletionQueue);
     	}
     }
     
@@ -252,7 +248,7 @@ public class Promise<T> implements Future<T> {
     
     public synchronized <R> Promise<R> onCatch(Function<Exception, R> func) {
     	final var prom = new Promise<R>((resolve, reject) -> {
-    		onErrorQueue.add(e -> {
+    		catchQueue.add(e -> {
     			try {
     				resolve.accept(func.apply(e));
     			}
@@ -269,7 +265,7 @@ public class Promise<T> implements Future<T> {
     
     public synchronized <R> Promise<R> asyncOnCatch(Function<Exception, Future<R>> func) {
     	final var prom = new Promise<R>((resolve, reject) -> {
-    		onErrorQueue.add(e -> {
+    		catchQueue.add(e -> {
     			try {
 	    			final var funcProm = Promise.fromFuture(func.apply(e));
 	    			funcProm.then(r -> {resolve.accept(r);});
@@ -288,15 +284,17 @@ public class Promise<T> implements Future<T> {
     
     public synchronized <R> Promise<R> onFinally(Supplier<R> func){
     	final var prom = new Promise<R>((resolve, reject) -> {
-    		onCompletionQueue.add(() -> {
+    		Runnable fullFunc = () -> {
     			try {
-	    			final var r = func.get();
-	    			resolve.accept(r);
+	    			resolve.accept(func.get());
     			}
     			catch(Exception e) {
     				reject.accept(e);
     			}
-    		});
+    		};
+    		
+    		thenQueue.add(r -> {fullFunc.run();});
+    		catchQueue.add(e -> {fullFunc.run();});
     	});
     	
     	handleCompletionIfComplete();
@@ -306,16 +304,19 @@ public class Promise<T> implements Future<T> {
     
     public synchronized <R> Promise<R> asyncOnFinally(Supplier<Future<R>> func){
     	final var prom = new Promise<R>((resolve, reject) -> {
-    		onCompletionQueue.add(() -> {
+    		Runnable fullFunc = () -> {
     			try {
 	    			final var funcProm = Promise.fromFuture(func.get());
-	    			funcProm.then(r2 -> {resolve.accept(r2);});
+	    			funcProm.then(r -> {resolve.accept(r);});
 	    			funcProm.onCatch(e -> {reject.accept(e);});
     			}
     			catch (Exception e) {
     				reject.accept(e);
     			}
-    		});
+    		};
+    		
+    		thenQueue.add(r -> {fullFunc.run();});
+    		catchQueue.add(r -> {fullFunc.run();});
     	});
 
     	handleCompletionIfComplete();

@@ -252,7 +252,12 @@ public class Driver {
 			try {
 				for(;;) {
 					final var numPromise = numberGiver.run();
+					
+					numPromise.then(n -> {return n + 1;}).then(n -> {return n / 0;}).then(n -> {System.out.println(n);}).onCatch(e -> {System.err.println(e);});
+					numPromise.then(n -> {System.out.println(n / 2);});
+					
 					final var num = await.apply(numPromise);
+					
 					System.out.println(num);
 				}
 			}
