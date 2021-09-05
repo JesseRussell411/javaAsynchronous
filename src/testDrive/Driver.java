@@ -235,10 +235,10 @@ public class Driver {
 		new Thread(() -> { async.execute(); }, "execution thread 3").start();
 		
 		// awaiting promise instead of calling them. unlike javascript, java can block.
-		new Thread(() -> { try { System.out.println(slowPromise.await() + "from steve"); } catch(Exception e) {} }, "steve").start();
-		new Thread(() -> { try { System.out.println(slowPromise.await() + "from steve2"); } catch(Exception e) {} }, "steve2").start();
-		new Thread(() -> { try { System.out.println(slowPromise.await() + "from steve3"); } catch(Exception e) {} }, "steve3").start();
-		try{System.out.println(slowPromise.await());}catch(Exception e) {};
+		new Thread(() -> { try { System.out.println(slowPromise.await() + "from steve"); } catch(Throwable e) {} }, "steve").start();
+		new Thread(() -> { try { System.out.println(slowPromise.await() + "from steve2"); } catch(Throwable e) {} }, "steve2").start();
+		new Thread(() -> { try { System.out.println(slowPromise.await() + "from steve3"); } catch(Throwable e) {} }, "steve3").start();
+		try{System.out.println(slowPromise.await());}catch(Throwable e) {};
 		
 		
 		
@@ -272,7 +272,7 @@ public class Driver {
 				catch (CoThreadCompleteException ctce){
 					System.out.println("CoThread is out of numbers");
 				}
-				catch (Exception e) {
+				catch (Throwable e) {
 					throw uw;
 				}
 			}

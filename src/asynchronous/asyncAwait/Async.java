@@ -158,7 +158,7 @@ public class Async {
 					return null;
 				}
 			}
-			catch(Exception e) {
+			catch(Throwable e) {
 				throw UncheckedWrapper.uncheckify(e);
 			}
 		}

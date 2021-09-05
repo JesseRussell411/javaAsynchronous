@@ -20,7 +20,7 @@ public class Task<T> implements Future<T>{
     @Override
     public boolean isCancelled() { return promise.isRejected() && promise.getException() instanceof CancellationException; }
     public T getResult() { return promise.getResult(); }
-    public Exception getException() { return promise.getException(); }
+    public Throwable getException() { return promise.getException(); }
 	
     // constructors:
     Task(){
@@ -29,7 +29,7 @@ public class Task<T> implements Future<T>{
     Task(Promise<T> promise){
     	this.promise = promise;
     }
-	public Task(BiConsumer<Consumer<T>, Consumer<Exception>> initializer, Consumer<CancellationException> onCancel) {
+	public Task(BiConsumer<Consumer<T>, Consumer<Throwable>> initializer, Consumer<CancellationException> onCancel) {
 		promise = new Promise<T>(initializer);
 		this.onCancel(onCancel);
 	}
@@ -40,9 +40,9 @@ public class Task<T> implements Future<T>{
 	}
 	
 	// everything else:
-	public T await() throws UncheckedInterruptedException, Exception { return promise.await(); }
-	public T await(long millisecondTimeout) throws UncheckedInterruptedException, Exception { return promise.await(millisecondTimeout); }
-	public T await(long millisecondTimeout, int nanoSecondTimeout) throws UncheckedInterruptedException, Exception { return promise.await(millisecondTimeout, nanoSecondTimeout); }
+	public T await() throws UncheckedInterruptedException, Throwable { return promise.await(); }
+	public T await(long millisecondTimeout) throws UncheckedInterruptedException, Throwable { return promise.await(millisecondTimeout); }
+	public T await(long millisecondTimeout, int nanoSecondTimeout) throws UncheckedInterruptedException, Throwable { return promise.await(millisecondTimeout, nanoSecondTimeout); }
 	
 	// o------------------------------------------o
     // | then, onError, onComplete, and onCancel: |
@@ -55,10 +55,10 @@ public class Task<T> implements Future<T>{
     public synchronized <R> Promise<R> asyncThen(Supplier<Future<R>> func) { return promise.asyncThen(func); }
     
     
-    public synchronized <R> Promise<R> onCatch(Function<Exception, R> func) { return promise.onCatch(func); }
-    public synchronized Promise<Void> onCatch(Consumer<Exception> func) { return promise.onCatch(func); }
+    public synchronized <R> Promise<R> onCatch(Function<Throwable, R> func) { return promise.onCatch(func); }
+    public synchronized Promise<Void> onCatch(Consumer<Throwable> func) { return promise.onCatch(func); }
     public synchronized Promise<Void> onCatch(Runnable func) { return promise.onCatch(func); }
-    public synchronized <R> Promise<R> asyncOnCatch(Function<Exception, Future<R>> func) { return promise.asyncOnCatch(func); }
+    public synchronized <R> Promise<R> asyncOnCatch(Function<Throwable, Future<R>> func) { return promise.asyncOnCatch(func); }
     public synchronized <R> Promise<R> asyncOnCatch(Supplier<Future<R>> func) { return promise.asyncOnCatch(func); }    
     
     public synchronized <R> Promise<R> onFinally(Supplier<R> func) { return promise.onFinally(func); }
@@ -76,7 +76,7 @@ public class Task<T> implements Future<T>{
 	    				try {
 	    					resolve.accept(func.apply((CancellationException)e));
 	    				}
-	    				catch(Exception e2) {
+	    				catch(Throwable e2) {
 	    					reject.accept(e);
 	    				}
     				}
@@ -114,7 +114,7 @@ public class Task<T> implements Future<T>{
 	    					funcPromise.then(r -> {resolve.accept(r);});
 	    					funcPromise.onCatch(e2 -> {reject.accept(e);});
     					}
-    					catch(Exception e2) {
+    					catch(Throwable e2) {
     						reject.accept(e2);
     					}
     				}
@@ -131,7 +131,7 @@ public class Task<T> implements Future<T>{
     	});
     }
     // END then, onError, onCompletion, and onCancel
-    public static <T> Task<T> threadInit(BiConsumer<Consumer<T>, Consumer<Exception>> initializer, Consumer<CancellationException> onCancel){
+    public static <T> Task<T> threadInit(BiConsumer<Consumer<T>, Consumer<Throwable>> initializer, Consumer<CancellationException> onCancel){
     	final var task = new Task<T>();
     	task.onCancel(onCancel);
     	

@@ -20,11 +20,11 @@ public class Promise<T> implements Future<T> {
     private final Queue<Consumer<T>> thenQueue = new LinkedList<>();
     private final Queue<Promise<?>> thenPromises = new LinkedList<>();
     // queue of functions to run on rejection (like the catch block)
-    private final Queue<Consumer<Exception>> catchQueue = new LinkedList<>();
+    private final Queue<Consumer<Throwable>> catchQueue = new LinkedList<>();
     private boolean resolved = false;
     private boolean rejected = false;
     private T result = null;
-    private Exception exception = null;
+    private Throwable exception = null;
     
     // Whether the promise has been finalized (resolved or rejected);
     public boolean isFinalized() { return resolved || rejected; }
@@ -44,7 +44,7 @@ public class Promise<T> implements Future<T> {
      * NOTE: even if the promise has been rejected this will still return null if the exception was null. To check if the promise has been rejected use "isRejected()".
      * @return
      */
-    public Exception getException() { return exception; }
+    public Throwable getException() { return exception; }
     
     Promise(){}
     
@@ -53,7 +53,7 @@ public class Promise<T> implements Future<T> {
      * To initialize asynchronously use "Promise.threadInit" instead or start a new thread inside the initializer.
      * @param Initializer function that consumes resolve and reject functions. Use them to resolve or reject the promise respectively.
      */
-    public Promise(BiConsumer<Consumer<T>, Consumer<Exception>> initializer) {
+    public Promise(BiConsumer<Consumer<T>, Consumer<Throwable>> initializer) {
         initializer.accept((r) -> resolve(r), (e) -> reject(e));
     }
 
@@ -134,7 +134,7 @@ public class Promise<T> implements Future<T> {
         notifyAll();
     }
     
-    synchronized void reject(Exception exception) throws RejectionOfCompletedPromiseException{
+    synchronized void reject(Throwable exception) throws RejectionOfCompletedPromiseException{
     	if (resolved || rejected) {
     		throw new RejectionOfCompletedPromiseException(this);
     	}
@@ -152,7 +152,7 @@ public class Promise<T> implements Future<T> {
         notifyAll();
     }
     
-    public synchronized T await() throws UncheckedInterruptedException, Exception {
+    public synchronized T await() throws UncheckedInterruptedException, Throwable {
     	notify();
     	try {
 	    	while(!isFinalized()) {
@@ -171,7 +171,7 @@ public class Promise<T> implements Future<T> {
     	}
     }
     
-    public synchronized T await(long millisecondTimeout, int nanoSecondTimeout) throws UncheckedInterruptedException, TimeoutException, Exception {
+    public synchronized T await(long millisecondTimeout, int nanoSecondTimeout) throws UncheckedInterruptedException, TimeoutException, Throwable {
     	AtomicBoolean timedOut = new AtomicBoolean(false);
     	
     	Timing.setTimeout(() ->{
@@ -201,7 +201,7 @@ public class Promise<T> implements Future<T> {
     	}
     }
     
-    public synchronized T await(long milliseconedTimeout) throws UncheckedInterruptedException, Exception {
+    public synchronized T await(long milliseconedTimeout) throws UncheckedInterruptedException, Throwable {
     	return await(milliseconedTimeout, 0);
     }
 
@@ -215,7 +215,7 @@ public class Promise<T> implements Future<T> {
 	    			final var r2 = func.apply(r);
 	    			resolve.accept(r2);
     			}
-    			catch(Exception e) {
+    			catch(Throwable e) {
     				reject.accept(e);
     			}
     		});
@@ -235,7 +235,7 @@ public class Promise<T> implements Future<T> {
 	    			funcProm.then(r2 -> {resolve.accept(r2);});
 	    			funcProm.onCatch(e -> {reject.accept(e);});
     			}
-    			catch (Exception e) {
+    			catch (Throwable e) {
     				reject.accept(e);
     			}
     		});
@@ -247,13 +247,13 @@ public class Promise<T> implements Future<T> {
     	return prom;
     }
     
-    public synchronized <R> Promise<R> onCatch(Function<Exception, R> func) {
+    public synchronized <R> Promise<R> onCatch(Function<Throwable, R> func) {
     	final var prom = new Promise<R>((resolve, reject) -> {
     		catchQueue.add(e -> {
     			try {
     				resolve.accept(func.apply(e));
     			}
-    			catch(Exception e2) {
+    			catch(Throwable e2) {
     				reject.accept(e2);
     			}
     		});
@@ -264,7 +264,7 @@ public class Promise<T> implements Future<T> {
     	return prom;
     }
     
-    public synchronized <R> Promise<R> asyncOnCatch(Function<Exception, Future<R>> func) {
+    public synchronized <R> Promise<R> asyncOnCatch(Function<Throwable, Future<R>> func) {
     	final var prom = new Promise<R>((resolve, reject) -> {
     		catchQueue.add(e -> {
     			try {
@@ -272,7 +272,7 @@ public class Promise<T> implements Future<T> {
 	    			funcProm.then(r -> {resolve.accept(r);});
 	    			funcProm.onCatch(e2 -> {reject.accept(e2);});
     			}
-    			catch(Exception e2) {
+    			catch(Throwable e2) {
     				reject.accept(e2);
     			}
     		});
@@ -289,7 +289,7 @@ public class Promise<T> implements Future<T> {
     			try {
 	    			resolve.accept(func.get());
     			}
-    			catch(Exception e) {
+    			catch(Throwable e) {
     				reject.accept(e);
     			}
     		};
@@ -311,7 +311,7 @@ public class Promise<T> implements Future<T> {
 	    			funcProm.then(r -> {resolve.accept(r);});
 	    			funcProm.onCatch(e -> {reject.accept(e);});
     			}
-    			catch (Exception e) {
+    			catch (Throwable e) {
     				reject.accept(e);
     			}
     		};
@@ -352,7 +352,7 @@ public class Promise<T> implements Future<T> {
         });
     }
     
-    public synchronized Promise<Void> onCatch(Consumer<Exception> func){
+    public synchronized Promise<Void> onCatch(Consumer<Throwable> func){
     	return onCatch(e -> {
     		func.accept(e);
     		return null;
@@ -414,12 +414,12 @@ public class Promise<T> implements Future<T> {
      * Creates a new promise by running the initializer in a new thread.
      * @param Initializer function that consumes resolve and reject functions. Use them to resolve or reject the promise respectively.
      */
-    public static <T> Promise<T> threadInit(BiConsumer<Consumer<T>, Consumer<Exception>> initializer){
+    public static <T> Promise<T> threadInit(BiConsumer<Consumer<T>, Consumer<Throwable>> initializer){
     	return new Promise<T>((resolve, reject) -> new Thread(() -> {
     		try {
     			initializer.accept(resolve, reject);
     		}
-    		catch (Exception e){
+    		catch (Throwable e){
     			reject.accept(e);
     		}
     	}).start());
@@ -434,14 +434,24 @@ public class Promise<T> implements Future<T> {
     		try {
     			initializer.accept(resolve);
     		}
-    		catch (Exception e){
+    		catch (Throwable e){
     			reject.accept(e);
     		}
     	}).start());
     }
     
-    public static <T> Promise<T> fromFuture(Future<T> future, boolean rejectOnCancel){
-    	if (future instanceof Promise<T>) {
+    public static <T> Promise<T> fromFuture(Future<T> future){
+    	// special cases:
+    	if (future instanceof CompletableFuture<T> cf) {
+    		return new Promise<T>((resolve, reject) -> {
+    			cf.thenAccept(r -> resolve.accept(r));
+    			cf.exceptionally(e -> {
+    				reject.accept(e);
+    				return null;
+    			});
+    		});
+    	}
+    	else if (future instanceof Promise<T>) {
     		return (Promise<T>)future;
     	}
     	else if (future instanceof Task<T>) {
@@ -450,32 +460,24 @@ public class Promise<T> implements Future<T> {
     	else if (future instanceof Deferred<T>) {
     		return ((Deferred<T>)future).getPromise();
     	}
+    	
+    	// unspecial cases:
     	return Promise.threadInit((resolve, reject) -> {
     		try {
     			resolve.accept(future.get());
     		}
     		catch(ExecutionException ee) {
-    			if (ee instanceof Exception) {
-    				reject.accept((Exception)ee);
-    			}
-    			else {
-    				reject.accept(ee);
-    			}
+    			reject.accept(ee.getCause());
     		}
     		catch(CancellationException ce) {
-    			if (rejectOnCancel) {
-    				reject.accept(ce);
-    			}
+				reject.accept(ce);
     		}
-    		catch(Exception e) {
+    		catch(Throwable e) {
     			reject.accept(e);
     		}
     	});
     }
     
-    public static <T> Promise<T> fromFuture(Future<T> future){
-    	return fromFuture(future, true);
-    }
     
     // o-----------------------o
     // | Interface Compliance: |
@@ -504,7 +506,7 @@ public class Promise<T> implements Future<T> {
 		catch (UncheckedInterruptedException uie) {
 			throw uie.getOriginal();
 		}
-		catch (Exception e){
+		catch (Throwable e){
 			throw new ExecutionException(e);
 		}
 	}
@@ -520,7 +522,7 @@ public class Promise<T> implements Future<T> {
 		catch(TimeoutException te) {
 			throw te;
 		}
-		catch(Exception e) {
+		catch(Throwable e) {
 			throw new ExecutionException(e);
 		}
 	}
@@ -533,7 +535,7 @@ public class Promise<T> implements Future<T> {
 		promise.resolve(value);
 		return promise;
 	}
-	public static <T> Promise<T> rejected(Exception exception){
+	public static <T> Promise<T> rejected(Throwable exception){
 		Promise<T> promise = new Promise<T>();
 		promise.reject(exception);
 		return promise;
@@ -545,7 +547,7 @@ public class Promise<T> implements Future<T> {
 			RefBoolean countingComplete = new RefBoolean(false);
 			RefBoolean isRejected = new RefBoolean(false);
 			RefBoolean isResolved = new RefBoolean(false);
-			Ref<Exception> rejection = new Ref<>(null);
+			Ref<Throwable> rejection = new Ref<>(null);
 			
 			Object lock = new Object();
 			

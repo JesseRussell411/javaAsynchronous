@@ -20,7 +20,7 @@ public class Deferred<T> implements Future<T> {
     @Override
 	public boolean isCancelled() { return task.isCancelled(); }
     public T getResult() { return task.getResult(); }
-    public Exception getException() { return task.getException(); }
+    public Throwable getException() { return task.getException(); }
     
     // constructors:
     Deferred(Task<T> task){
@@ -46,7 +46,7 @@ public class Deferred<T> implements Future<T> {
 		}
 	}
 	
-	public synchronized boolean reject(Exception exception) {
+	public synchronized boolean reject(Throwable exception) {
 		if (task.isFinalized()) {
 			return false;
 		}
@@ -66,7 +66,7 @@ public class Deferred<T> implements Future<T> {
 		}
 	}
 	
-	public synchronized boolean rejectUsing(Supplier<Exception> getException) {
+	public synchronized boolean rejectUsing(Supplier<Throwable> getException) {
 		if (task.isFinalized()) {
 			return false;
 		}
@@ -78,9 +78,9 @@ public class Deferred<T> implements Future<T> {
 
 	
 	// everything else:
-	public T await() throws UncheckedInterruptedException, Exception { return task.await(); }
-	public T await(long millisecondTimeout) throws UncheckedInterruptedException, Exception { return task.await(millisecondTimeout); }
-	public T await(long millisecondTimeout, int nanoSecondTimeout) throws UncheckedInterruptedException, Exception { return task.await(millisecondTimeout, nanoSecondTimeout); }
+	public T await() throws UncheckedInterruptedException, Throwable { return task.await(); }
+	public T await(long millisecondTimeout) throws UncheckedInterruptedException, Throwable { return task.await(millisecondTimeout); }
+	public T await(long millisecondTimeout, int nanoSecondTimeout) throws UncheckedInterruptedException, Throwable { return task.await(millisecondTimeout, nanoSecondTimeout); }
 	
 	// o------------------------------------------o
     // | then, onError, onComplete, and onCancel: |
@@ -92,10 +92,10 @@ public class Deferred<T> implements Future<T> {
     public synchronized <R> Promise<R> asyncThen(Function<T, Future<R>> func) { return task.asyncThen(func); }
     public synchronized <R> Promise<R> asyncThen(Supplier<Future<R>> func) { return task.asyncThen(func); }
     
-    public synchronized <R> Promise<R> onCatch(Function<Exception, R> func) { return task.onCatch(func); }
-    public synchronized Promise<Void> onCatch(Consumer<Exception> func) { return task.onCatch(func); }
+    public synchronized <R> Promise<R> onCatch(Function<Throwable, R> func) { return task.onCatch(func); }
+    public synchronized Promise<Void> onCatch(Consumer<Throwable> func) { return task.onCatch(func); }
     public synchronized Promise<Void> onCatch(Runnable func) { return task.onCatch(func); }
-    public synchronized <R> Promise<R> asyncOnCatch(Function<Exception, Future<R>> func) { return task.asyncOnCatch(func); }
+    public synchronized <R> Promise<R> asyncOnCatch(Function<Throwable, Future<R>> func) { return task.asyncOnCatch(func); }
     public synchronized <R> Promise<R> asyncOnCatch(Supplier<Future<R>> func) { return task.asyncOnCatch(func); }    
     
     public synchronized <R> Promise<R> onFinally(Supplier<R> func) { return task.onFinally(func); }
