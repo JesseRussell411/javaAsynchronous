@@ -8,6 +8,8 @@ import exceptionsPlus.UncheckedWrapper;
 
 public class Driver {
 	public static void main(String[] args) throws InterruptedException{
+		final Async async = new Async();
+		
 		// Instructions:
 		// ------------
 		// to make an async function, instantiate the Async class or one of it's siblings: Async1, Async2, Async3... etc. if you want the function to have parameters.
@@ -78,35 +80,39 @@ public class Driver {
 		
 		// And yes I made my own promise class because, well, completableFuture looked real confusing so naturally I would rather create my own than learn how to use the one that already exists.
 		// The promise class acts almost exactly like the one in javascript of course.
-		
+
 		
 		// over complicated hello world example:
 		// ------------------------------------
-		final var getHello = new Async<String>(await -> {
+//		final var getHelloWorld = async.def((await) -> {
+//			printCrap.get();
+//			return await.apply(supplyHelloWorld.apply(2));
+//			});
+		final var getHello = async.def("getHello", await -> {
 			// sleep for a bit
 			await.sleep(1000);
 			
 			// get around to returning hello
 			return "hello";
-		}, "getHello");
+		});
 		
-		final var getSpace = new Async<String>(await -> {
+		final var getSpace = async.def("getSpace", await -> {
 			//sleep for a bit
 			await.sleep(500);
 			
 			// get around to returning a space
 			return " ";
-		}, "getSpace");
+		});
 		
-		final var getWorld = new Async<String>(await -> {		
+		final var getWorld = async.def("getWorld", await -> {		
 			// sleep for a bit
 			await.sleep(900);
 			
 			// get around to returning world
 			return "world";
-		}, "getWorld");
+		});
 		
-		final var getHelloworld = new Async<String>(await -> {
+		final var getHelloworld = async.def("getHelloworld", await -> {
 			// get the promises from each function
 			final var hello = getHello.get();
 			final var space = getSpace.get();
@@ -116,19 +122,19 @@ public class Driver {
 			return await.apply(hello) +
 					await.apply(space) +
 					await.apply(world);
-		}, "getHelloworld");
+		});
 		
-		final var main = new AsyncVoid(await -> {
+		final var main = async.def("main", await -> {
 			System.out.println("Getting hello world...");
 			System.out.println(await.apply(getHelloworld.get()));
 			System.out.println("Hello world has been gotten.");
-		}, "main");
+		});
 		
 		
 		System.out.println("Hello world example: ");
 		main.get();
 		// execute doesn't HAVE to be called at the end of main. It can really be called anywhere. But beware, it blocks until all async function calls are complete.
-		Async.execute();
+		async.execute();
 		
 		
 		
@@ -137,15 +143,15 @@ public class Driver {
 		
 		// Errors propagate up just like in javascript, but they do have to be wrapped in UncheckedWrapper (a RuntimeException)
 		// because checked exceptions get really annoying when you're using lambdas.
-		final var throwSomething = new AsyncVoid(await -> {
+		final var throwSomething = async.def("throwSomething", (Consumer<Async.Await>)(await -> {
 			throw new NullPointerException("This pointer doesn't exist. Oh, wait that means void! sorry");
-		}, "throwSomething");
+		}));
 		
-		final var runThrowSomethingAsIfItDoesntThrowAnything = new AsyncVoid(await -> {
+		final var runThrowSomethingAsIfItDoesntThrowAnything = async.def("runThrowSomethingAsIfItDoesntThrowAnything", await -> {
 			await.apply(throwSomething.get());
-		}, "runThrowSomethingAsIfItDoesntThrowAnything");
+		});
 		
-		final var main2 = new AsyncVoid(await -> {
+		final var main2 = async.def(await -> {
 			System.out.println("Error handling test...");
 			try {
 				await.apply(runThrowSomethingAsIfItDoesntThrowAnything.get());
@@ -168,22 +174,22 @@ public class Driver {
 		
 		
 		main2.get();
-		Async.execute();
+		async.execute();
 		
 		
 		// A big mess that I call example 3:
 		// ---------------------------------------------------
-		final var get8 = new Async<Integer>(await -> {
+		final var get8 = async.def("get8", await -> {
 			await.sleep(1000);
 			return 8;
-		}, "get8");
+		});
 		
-		final var get2plus8 = new Async<Integer>(await -> {
+		final var get2plus8 = async.def(await -> {
 			var Promise8 = get8.get();
 			return await.apply(Promise8) + 2;
-		}, "add2");
+		});
 		
-		final var getHello10 = new Async<String>(await -> {
+		final var getHello10 = async.def("getHello10", await -> {
 			var PromiseForHello = getHello.get();
 			var PromiseFor10 = get2plus8.get();
 			try {
@@ -199,9 +205,9 @@ public class Driver {
 				}
 				return "SOMETHINGWENTWRONG";
 			}
-		}, "getHello10");
+		});
 		
-		final var getHelloAnd = new Async1<Double, String>((await, addition) -> {
+		final var getHelloAnd = async.def((Async.Await await, Double addition) -> {
 			return await.apply(getHello.get()) + addition;
 		});
 		
@@ -210,23 +216,23 @@ public class Driver {
 		getHelloAnd.apply(42.41).then(r -> {System.out.println(r);});
 		
 		
-		final var slowAdd = new Async2<Double, Double, Double>((await, d1, d2) -> {
+		final var slowAdd = async.def("slowAdd", (Async.Await await , Double d1, Double d2) -> {
 			await.sleep(1000);
 			return d1 + d2;
-		}, "slowAdd");
+		});
 		
-		final var slowAddSpecific = new Async3<Double, Double, Long, Double>((await, d1, d2, waitTime) -> {
+		final var slowAddSpecific = async.<Double, Double, Long, Double>def((await, d1, d2, waitTime) -> {
 			await.sleep(waitTime);
 			return d1 + d2;
-		}, "slowAddSpecific");
+		});
 		
 		
 		var slowPromise = slowAdd.apply(0.1, 0.2);
 		
 		// multiple execution threads? Why not!
-		new Thread(() -> { Async.execute(); }, "execution thread 1").start();
-		new Thread(() -> { Async.execute(); }, "execution thread 2").start();
-		new Thread(() -> { Async.execute(); }, "execution thread 3").start();
+		new Thread(() -> { async.execute(); }, "execution thread 1").start();
+		new Thread(() -> { async.execute(); }, "execution thread 2").start();
+		new Thread(() -> { async.execute(); }, "execution thread 3").start();
 		
 		// awaiting promise instead of calling them. unlike javascript, java can block.
 		new Thread(() -> { try { System.out.println(slowPromise.await() + "from steve"); } catch(Exception e) {} }, "steve").start();
@@ -248,7 +254,7 @@ public class Driver {
 		}, "number giver");
 		numberGiver.start();
 		
-		final var numberGetter = new AsyncVoid((await) -> {
+		final var numberGetter = async.def((await) -> {
 			try {
 				for(;;) {
 					final var numPromise = numberGiver.run();
@@ -270,12 +276,12 @@ public class Driver {
 					throw uw;
 				}
 			}
-		}, "number getter");
+		});
 		
 		
 		numberGetter.get();
 		
-		Async.execute();
+		async.execute();
 		numberGiver.close();
 	}
 }

@@ -2,6 +2,7 @@ package asynchronous;
 import java.util.LinkedList;
 import java.util.Queue;
 import java.util.concurrent.CancellationException;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
@@ -443,7 +444,12 @@ public class Promise<T> implements Future<T> {
     	if (future instanceof Promise<T>) {
     		return (Promise<T>)future;
     	}
-    	
+    	else if (future instanceof Task<T>) {
+    		return ((Task<T>)future).getPromise();
+    	}
+    	else if (future instanceof Deferred<T>) {
+    		return ((Deferred<T>)future).getPromise();
+    	}
     	return Promise.threadInit((resolve, reject) -> {
     		try {
     			resolve.accept(future.get());
