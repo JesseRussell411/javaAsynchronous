@@ -451,14 +451,14 @@ public class Promise<T> implements Future<T> {
     			});
     		});
     	}
-    	else if (future instanceof Promise<T>) {
-    		return (Promise<T>)future;
+    	else if (future instanceof Promise<T> p) {
+    		return p;
     	}
-    	else if (future instanceof Task<T>) {
-    		return ((Task<T>)future).getPromise();
+    	else if (future instanceof Task<T> t) {
+    		return t.getPromise();
     	}
-    	else if (future instanceof Deferred<T>) {
-    		return ((Deferred<T>)future).getPromise();
+    	else if (future instanceof Deferred<T> d) {
+    		return d.getPromise();
     	}
     	
     	// unspecial cases:
