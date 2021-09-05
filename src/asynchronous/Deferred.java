@@ -17,7 +17,8 @@ public class Deferred<T> implements Future<T> {
 	public boolean isResolved() { return task.isResolved(); }
     public boolean isRejected() { return task.isRejected(); }
     public boolean isFinalized() { return task.isFinalized(); }
-    public boolean isCanceled() { return task.isCanceled(); }
+    @Override
+	public boolean isCancelled() { return task.isCancelled(); }
     public T getResult() { return task.getResult(); }
     public Exception getException() { return task.getException(); }
     
@@ -125,10 +126,7 @@ public class Deferred<T> implements Future<T> {
     public boolean cancel() {
     	return task.cancel();
     }
-	@Override
-	public boolean isCancelled() {
-		return task.isCanceled();
-	}
+	
 	/** Added for interface implementation. Equivalent to isComplete. */
 	@Override
 	public boolean isDone() {

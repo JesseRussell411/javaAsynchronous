@@ -11,14 +11,14 @@ import java.util.function.*;
 public class Task<T> implements Future<T>{
 	// fields:
 	Promise<T> promise;
-	private boolean canceled = false;
 	
 	// properties:
 	public Promise<T> getPromise() { return promise; }
 	public boolean isResolved() { return promise.isResolved(); }
     public boolean isRejected() { return promise.isRejected(); }
     public boolean isFinalized() { return promise.isFinalized(); }
-    public boolean isCanceled() { return canceled; }
+    @Override
+    public boolean isCancelled() { return promise.isRejected() && promise.getException() instanceof CancellationException; }
     public T getResult() { return promise.getResult(); }
     public Exception getException() { return promise.getException(); }
 	
@@ -71,7 +71,7 @@ public class Task<T> implements Future<T>{
     public synchronized <R> Promise<R> onCancel(Function<CancellationException, R> func){
     	return new Promise<R>((resolve, reject) -> {
     		onCatch(e -> {
-    			if (canceled) {
+    			if (isCancelled()) {
     				if (e instanceof CancellationException) {
 	    				try {
 	    					resolve.accept(func.apply((CancellationException)e));
@@ -107,7 +107,7 @@ public class Task<T> implements Future<T>{
     public synchronized <R> Promise<R> asyncOnCancel(Function<CancellationException, Future<R>> func){
     	return new Promise<R>((resolve, reject) -> {
     		onCatch(e -> {
-    			if (canceled) {
+    			if (isCancelled()) {
     				if (e instanceof CancellationException) {
     					try {
 	    					final var funcPromise = Promise.fromFuture(func.apply((CancellationException)e));
@@ -190,11 +190,6 @@ public class Task<T> implements Future<T>{
     public boolean cancel() {
     	return cancel(mayInterruptIfRunning_DEFAULT);
     }
-    
-	@Override
-	public boolean isCancelled() {
-		return canceled;
-	}
 	/** Added for interface implementation. Equivalent to isComplete. */
 	@Override
 	public boolean isDone() {

@@ -154,7 +154,7 @@ public class Promise<T> implements Future<T> {
     public synchronized T await() throws UncheckedInterruptedException, Exception {
     	notify();
     	try {
-	    	while(!resolved && !rejected) {
+	    	while(!isFinalized()) {
 	    		wait();
 	    	}
     	}
