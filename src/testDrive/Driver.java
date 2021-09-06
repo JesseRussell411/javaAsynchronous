@@ -221,6 +221,7 @@ public class Driver {
 			return d1 + d2;
 		});
 		
+		@SuppressWarnings("unused")
 		final var slowAddSpecific = async.<Double, Double, Long, Double>def((await, d1, d2, waitTime) -> {
 			await.sleep(waitTime);
 			return d1 + d2;
