@@ -7,9 +7,19 @@ import asynchronous.asyncAwait.*;
 import exceptionsPlus.UncheckedWrapper;
 
 public class Driver {
+	public static Async async = new Async();
+	
+	// example of defining an async function as a class method:
+	public static Promise<String> AsyncTriConcatenater(Supplier<Promise<Object>> a, Supplier<Promise<Object>> b, Supplier<Promise<Object>> c){
+		// without async
+		return a.get().asyncThen(ar -> b.get().asyncThen(br -> c.get().then(cr -> a.toString() + b.toString() + c.toString())));
+		// with async
+//		return async.def(await -> await.apply(a.get()).toString() + await.apply(b.get()).toString() + await.apply(c.get()).toString()).get();
+	}
+	
 	public static void main(String[] args) throws InterruptedException{
-		final Async async = new Async();
 		
+		// *** Out-dated documentation, sorry about that
 		// Instructions:
 		// ------------
 		// to make an async function, instantiate the Async class or one of it's siblings: Async1, Async2, Async3... etc. if you want the function to have parameters.
@@ -135,6 +145,8 @@ public class Driver {
 		main.get();
 		// execute doesn't HAVE to be called at the end of main. It can really be called anywhere. But beware, it blocks until all async function calls are complete.
 		async.execute();
+		
+		
 		
 		
 		
