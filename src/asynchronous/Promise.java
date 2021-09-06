@@ -208,7 +208,8 @@ public class Promise<T> implements Future<T> {
     // o----------------------------------o
     // | Then, onError, and onCompletion: |
     // o----------------------------------o
-    public synchronized <R> Promise<R> then(Function<T, R> func) {
+    // then:
+    public synchronized <R> Promise<R> thenApply(Function<T, R> func) {
     	final var prom = new Promise<R>((resolve, reject) -> {
     		thenQueue.add(r -> {
     			try {
@@ -226,8 +227,41 @@ public class Promise<T> implements Future<T> {
     	
     	return prom;
     }
+    public synchronized <R> Promise<R> then(Function<T, R> func){
+    	return thenApply(func);
+    }
     
-    public synchronized <R> Promise<R> asyncThen(Function<T, Future<R>> func) {
+    public synchronized Promise<T> thenAccept(Consumer<T> func) {
+        return thenApply(r -> {
+            func.accept(r);
+            return result;
+        });
+    }
+    public synchronized Promise<T> then(Consumer<T> func) {
+    	return thenAccept(func);
+    }
+    
+    public synchronized Promise<T> thenRun(Runnable func) {
+        return thenApply(r -> {
+            func.run();
+            return result;
+        });
+    }
+    public synchronized Promise<T> then(Runnable func){
+    	return thenRun(func);
+    }
+    
+    public synchronized <R> Promise<R> thenGet(Supplier<R> func) {
+        return thenApply(r -> {
+            return func.get();
+        });
+    }
+    public synchronized <R> Promise<R> then(Supplier<R> func) {
+    	return thenGet(func);
+    }
+    
+    // asyncThen -- like then but the callback must return a Future
+    public synchronized <R> Promise<R> asyncThenApply(Function<T, Future<R>> func) {
     	final var prom = new Promise<R>((resolve, reject) -> {
     		thenQueue.add(r -> {
     			try {
@@ -246,8 +280,22 @@ public class Promise<T> implements Future<T> {
     	
     	return prom;
     }
+    public synchronized <R> Promise<R> asyncThen(Function<T, Future<R>> func) {
+    	return asyncThenApply(func);
+    }
     
-    public synchronized <R> Promise<R> onCatch(Function<Throwable, R> func) {
+    public synchronized <R> Promise<R> asyncThenGet(Supplier<Future<R>> func) {
+    	return asyncThenApply(r -> {
+    		return func.get();
+    	});
+    }
+    
+    public synchronized <R> Promise<R> asyncThen(Supplier<Future<R>> func) {
+    	return asyncThenGet(func);
+    }
+    
+    // onCatch -- because I couldn't call it catch
+    public synchronized <R> Promise<R> onCatchApply(Function<Throwable, R> func) {
     	final var prom = new Promise<R>((resolve, reject) -> {
     		catchQueue.add(e -> {
     			try {
@@ -263,8 +311,41 @@ public class Promise<T> implements Future<T> {
     	
     	return prom;
     }
+    public synchronized <R> Promise<R> onCatch(Function<Throwable, R> func) {
+    	return onCatchApply(func);
+    }
     
-    public synchronized <R> Promise<R> asyncOnCatch(Function<Throwable, Future<R>> func) {
+    public synchronized Promise<Void> onCatchAccept(Consumer<Throwable> func){
+    	return onCatchApply(e -> {
+    		func.accept(e);
+    		return null;
+    	});
+    }
+    
+    public synchronized Promise<Void> onCatch(Consumer<Throwable> func){
+    	return onCatchAccept(func);
+    }
+    
+    public synchronized Promise<Void> onCatchRun(Runnable func) {
+    	return onCatchApply(e -> {
+    		func.run();
+    		return null;
+    	});
+    }
+    
+    public synchronized Promise<Void> onCatch(Runnable func) {
+    	return onCatchRun(func);
+    }
+    
+    public synchronized <R> Promise<R> onCatchGet(Supplier<R> func){
+    	return onCatchApply(e -> func.get());
+    }
+    
+    public synchronized <R> Promise<R> onCatch(Supplier<R> func){
+    	return onCatchGet(func);
+    }
+    
+    public synchronized <R> Promise<R> asyncOnCatchApply(Function<Throwable, Future<R>> func) {
     	final var prom = new Promise<R>((resolve, reject) -> {
     		catchQueue.add(e -> {
     			try {
@@ -283,7 +364,21 @@ public class Promise<T> implements Future<T> {
     	return prom;
     }
     
-    public synchronized <R> Promise<R> onFinally(Supplier<R> func){
+    public synchronized <R> Promise<R> asyncOnCatch(Function<Throwable, Future<R>> func){
+    	return asyncOnCatchApply(func);
+    }
+    
+    public synchronized <R> Promise<R> asyncOnCatchGet(Supplier<Future<R>> func) {
+    	return asyncOnCatchApply(e -> {
+    		return func.get();
+    	});
+    }
+    public synchronized <R> Promise<R> asyncOnCatch(Supplier<Future<R>> func) {
+    	return asyncOnCatchGet(func);
+    }
+    
+    // onFinally -- because I couldn't call it finally
+    public synchronized <R> Promise<R> onFinallyGet(Supplier<R> func){
     	final var prom = new Promise<R>((resolve, reject) -> {
     		Runnable fullFunc = () -> {
     			try {
@@ -302,8 +397,21 @@ public class Promise<T> implements Future<T> {
     	
     	return prom;
     }
+    public synchronized <R> Promise<R> onFinally(Supplier<R> func){
+    	return onFinallyGet(func);
+    }
     
-    public synchronized <R> Promise<R> asyncOnFinally(Supplier<Future<R>> func){
+    public synchronized Promise<Void> onFinallyRun(Runnable func){
+    	return onFinallyGet(() -> {
+    		func.run();
+    		return null;
+    	});
+    }
+    public synchronized Promise<Void> onFinally(Runnable func){
+    	return onFinallyRun(func);
+    }
+    
+    public synchronized <R> Promise<R> asyncOnFinallyGet(Supplier<Future<R>> func){
     	final var prom = new Promise<R>((resolve, reject) -> {
     		Runnable fullFunc = () -> {
     			try {
@@ -324,61 +432,10 @@ public class Promise<T> implements Future<T> {
     	
     	return prom;
     }
-    
-    // overloads:
-    public synchronized Promise<T> then(Consumer<T> func) {
-        return then(r -> {
-            func.accept(r);
-            return result;
-        });
+    public synchronized <R> Promise<R> asyncOnFinally(Supplier<Future<R>> func) {
+    	return asyncOnFinallyGet(func);
     }
-    
-    public synchronized Promise<T> then(Runnable func) {
-        return then(r -> {
-            func.run();
-            return result;
-        });
-    }
-    
-    public synchronized <R> Promise<R> then(Supplier<R> func) {
-        return then(r -> {
-            return func.get();
-        });
-    }
-    
-    public synchronized <R> Promise<R> asyncThen(Supplier<Future<R>> func) {
-        return asyncThen(r -> {
-            return func.get();
-        });
-    }
-    
-    public synchronized Promise<Void> onCatch(Consumer<Throwable> func){
-    	return onCatch(e -> {
-    		func.accept(e);
-    		return null;
-    	});
-    }
-    
-    public synchronized Promise<Void> onCatch(Runnable func) {
-    	return onCatch(e -> {
-    		func.run();
-    		return null;
-    	});
-    }
-    
-    public synchronized <R> Promise<R> asyncOnCatch(Supplier<Future<R>> func) {
-        return asyncOnCatch(e -> {
-            return func.get();
-        });
-    }
-    
-    public synchronized Promise<Void> onFinally(Runnable func){
-    	return onFinally(() -> {
-    		func.run();
-    		return null;
-    	});
-    }
-    // END Then, onError, and onCompletion
+    // END Then, onCatch, and onFinally
     
     // o--------------o
     // | Sub Classes: |

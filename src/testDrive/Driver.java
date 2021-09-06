@@ -212,7 +212,7 @@ public class Driver {
 		});
 		
 		
-		getHello10.get().then(r -> {System.out.println(r);});
+		getHello10.get().thenAccept(r -> System.out.println(r));
 		getHelloAnd.apply(42.41).then(r -> {System.out.println(r);});
 		
 		
