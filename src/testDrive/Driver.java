@@ -12,9 +12,20 @@ public class Driver {
 	// example of defining an async function as a class method:
 	public static Promise<String> AsyncTriConcatenater(Supplier<Promise<Object>> a, Supplier<Promise<Object>> b, Supplier<Promise<Object>> c){
 		// without async
-		return a.get().asyncThen(ar -> b.get().asyncThen(br -> c.get().then(cr -> a.toString() + b.toString() + c.toString())));
+		return a.get().asyncThen(ar -> 
+					 b.get().asyncThen(br -> 
+							   c.get().then(cr ->
+									a.toString()
+									+ b.toString()
+									+ c.toString())));
+		
 		// with async
-//		return async.def(await -> await.apply(a.get()).toString() + await.apply(b.get()).toString() + await.apply(c.get()).toString()).get();
+		return async.def(
+			await -> 
+			await.apply(a.get()).toString()
+			+ await.apply(b.get()).toString()
+			+ await.apply(c.get()).toString()
+		).get();
 	}
 	
 	public static void main(String[] args) throws InterruptedException{
