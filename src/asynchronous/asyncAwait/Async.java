@@ -180,6 +180,21 @@ public class Async {
 			}
 		}
 		
+		/**
+		 * Asynchronously waits for the given function to run in a separate thread.
+		 * @return whatever was returned by the function;
+		 */
+		public <T> T func(Supplier<T> func) {
+			return apply(Promise.threadInit(func));
+		}
+		
+		/**
+		 * Asynchronously waits for the given function to run in a separate thread.
+		 * */
+		public void func(Runnable func) {
+			apply(Promise.threadInit(func));
+		}
+		
 		// utils:
 		/**
 		 * Non-blocking sleep function. May sleep for longer than the specified time while it waits it's turn to execute.
