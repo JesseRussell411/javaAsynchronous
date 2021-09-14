@@ -194,6 +194,18 @@ public class Task<T> implements Future<T>{
     	thread.start();
     	return task;
     }
+    public static <T> Task<T> threadInit(Supplier<T> initializer, Consumer<CancellationException> onCancel){
+    	final var promise = Promise.<T>threadInit(initializer);
+    	final var task = new Task<T>(promise);
+    	task.onCancel(onCancel);
+    	return task;
+    }
+    public static Task<Void> threadInit(Runnable initializer, Consumer<CancellationException> onCancel){
+    	final var promise = Promise.threadInit(initializer);
+    	final var task = new Task<Void>(promise);
+    	task.onCancel(onCancel);
+    	return task;
+    }
     public static <T> Task<T> fromFuture(Future<T> future){
     	final var task = new Task<T>(Promise.fromFuture(future));
     	task.onCancel(() -> {

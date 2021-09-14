@@ -483,6 +483,35 @@ public class Promise<T> implements Future<T> {
     }
     
     /**
+     * Creates a new thread which runs the possibly blocking initializer
+     * function and returns a promise that resolves when that function
+     * completes or rejects when in encounters an error.
+     * @return Whatever was returned by the initializer
+     */
+    public static <T> Promise<T> threadInit(Supplier<T> initializer){
+    	return new Promise<T>((resolve, reject) -> new Thread(() -> {
+    		try {
+    			resolve.accept(initializer.get());
+    		}
+    		catch (Throwable e) {
+    			reject.accept(e);
+    		}
+    	}));
+    }
+    
+    /**
+     * Creates a new thread which runs the possibly blocking initializer
+     * function and returns a promise that resolves when that function
+     * completes or rejects when in encounters an error.
+     */
+    public static Promise<Void> threadInit(Runnable initializer){
+    	return Promise.<Void>threadInit(() -> {
+    		initializer.run();
+    		return null;
+    	});
+    }
+    
+    /**
      * Creates a new promise by running the initializer in a new thread.
      * @param Initializer function that consumes a resolve method. Use it to resolve the promise.
      */

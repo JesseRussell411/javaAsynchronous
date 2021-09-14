@@ -11,13 +11,13 @@ public class Driver {
 	
 	// example of defining an async function as a class method:
 	public static Promise<String> AsyncTriConcatenater(Supplier<Promise<Object>> a, Supplier<Promise<Object>> b, Supplier<Promise<Object>> c){
-		// without async
-		return a.get().asyncThen(ar -> 
-					 b.get().asyncThen(br -> 
-							   c.get().then(cr ->
-									a.toString()
-									+ b.toString()
-									+ c.toString())));
+//		// without async
+//		return a.get().asyncThen(ar -> 
+//					 b.get().asyncThen(br -> 
+//							   c.get().then(cr ->
+//									a.toString()
+//									+ b.toString()
+//									+ c.toString())));
 		
 		// with async
 		return async.def(
