@@ -227,15 +227,15 @@ public class Promise<T> implements Future<T>{
 	
 	// on error
 	public synchronized <R> Promise<R> onError(Function<Throwable, R> catcher){return onErrorApply(catcher);}
-	public synchronized Promise<Void> onError(Consumer<Throwable> catcher) {return onErrorAccept(catcher);}
+	public synchronized Promise<Void>  onError(Consumer<Throwable> catcher) {return onErrorAccept(catcher);}
 	public synchronized <R> Promise<R> onError(Supplier<R> catcher){return onErrorGet(catcher);}
-	public synchronized Promise<Void> onError(Runnable catcher){return onErrorRun(catcher);}
+	public synchronized Promise<Void>  onError(Runnable catcher){return onErrorRun(catcher);}
 	public synchronized <R> Promise<R> asyncOnError(Function<Throwable, Promise<R>> catcher){return asyncOnErrorApply(catcher);}
 	public synchronized <R> Promise<R> asyncOnError(Supplier<Promise<R>> catcher){return asyncOnErrorGet(catcher);}
 	
 	// on settled
-	public synchronized <R> Promise<R> onSettle(Supplier<R> settler){return onSettledGet(settler);}
-	public synchronized Promise<Void> onSettled(Runnable settler){return onSettledRun(settler);}
+	public synchronized <R> Promise<R> onSettled(Supplier<R> settler){return onSettledGet(settler);}
+	public synchronized Promise<Void>  onSettled(Runnable settler){return onSettledRun(settler);}
 	public synchronized <R> Promise<R> asyncOnSettled(Supplier<Promise<R>> settler){return asyncOnSettledGet(settler);}
 	
 	
@@ -471,8 +471,13 @@ class SyncCallback<T, R> implements Callback<T, R>{
 	Promise<R> next;
 	
 	SyncCallback(Function<T, R> then, Function<Throwable, R> catcher){
-		this.next = new Promise<R>();
-		this.then = then;
+this.next = new Promise<R>();
+		
+		if (then != null)
+			this.then = then;
+		else
+			this.then = t -> null;
+			
 		if (catcher != null)
 			this.catcher = catcher;
 		else
@@ -525,11 +530,16 @@ class AsyncCallback<T, R> implements Callback<T, R>{
 	
 	AsyncCallback(Function<T, Promise<R>> then, Function<Throwable, Promise<R>> catcher){
 		this.next = new Promise<R>();
-		this.then = then;
+		
+		if (then != null)
+			this.then = then;
+		else
+			this.then = t -> Promise.<R>resolved(null);
+			
 		if (catcher != null)
 			this.catcher = catcher;
 		else
-			this.catcher = e -> {next.reject(e); return null;};
+			this.catcher = e -> {next.reject(e); return Promise.<R>resolved(null);};
 	}
 	
 	public Promise<R> getNext() { return next; }
