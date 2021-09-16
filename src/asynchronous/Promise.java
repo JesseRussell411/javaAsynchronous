@@ -384,10 +384,10 @@ public class Promise<T> implements Future<T>{
 	public static <T> Promise<T> fromFuture(Future<T> future){
 		if (future instanceof Promise<T> p)
 			return p;
-		else if (future instanceof Task<T> t)
-			return t.promise;
-		else if (future instanceof Deferred<T> d)
-			return d.promise;
+//		else if (future instanceof Task<T> t)
+//			return t.promise;
+//		else if (future instanceof Deferred<T> d)
+//			return d.promise;
 		else if (future instanceof CompletableFuture<T> cf) {
 			final var result = new Promise<T>();
 			cf.thenAccept(t -> result.resolve(t));
@@ -395,7 +395,14 @@ public class Promise<T> implements Future<T>{
 			return result;
 		}
 		else {
-			return Promise.asyncGet(() -> future.get());
+			return Promise.threadInit((resolve, reject) -> {
+				try {
+					resolve.apply(future.get());
+				}
+				catch(Throwable e) {
+					reject.apply(e);
+				}
+			});
 		}
 	}
 	
