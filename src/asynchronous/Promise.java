@@ -166,8 +166,8 @@ public class Promise<T> implements Future<T>{
 		return thenApply(null, catcher);
 	}
 	
-	public synchronized Promise<Void> onErrorAccept(Consumer<Throwable> catcher) {
-		return onErrorApply(e -> {
+	public synchronized Promise<T> onErrorAccept(Consumer<Throwable> catcher) {
+		return thenApply(t -> t, e -> {
 			catcher.accept(e);
 			return null;
 		});
@@ -177,8 +177,8 @@ public class Promise<T> implements Future<T>{
 		return onErrorApply(e -> catcher.get());
 	}
 	
-	public synchronized Promise<Void> onErrorRun(Runnable catcher){
-		return onErrorApply(e -> {
+	public synchronized Promise<T> onErrorRun(Runnable catcher){
+		return thenApply(t -> t, e -> {
 			catcher.run();
 			return null;
 		});
@@ -197,8 +197,11 @@ public class Promise<T> implements Future<T>{
 		return thenApply(t -> settler.get(), t -> settler.get());
 	}
 	
-	public synchronized Promise<Void> onSettledRun(Runnable settler){
-		return onSettledGet(() ->{
+	public synchronized Promise<T> onSettledRun(Runnable settler){
+		return thenApply(t -> {
+			settler.run();
+			return t;
+		},e ->{
 			settler.run();
 			return null;
 		});
@@ -227,15 +230,15 @@ public class Promise<T> implements Future<T>{
 	
 	// on error
 	public synchronized <R> Promise<R> onError(Function<Throwable, R> catcher){return onErrorApply(catcher);}
-	public synchronized Promise<Void>  onError(Consumer<Throwable> catcher) {return onErrorAccept(catcher);}
+	public synchronized Promise<T>     onError(Consumer<Throwable> catcher) {return onErrorAccept(catcher);}
 	public synchronized <R> Promise<R> onError(Supplier<R> catcher){return onErrorGet(catcher);}
-	public synchronized Promise<Void>  onError(Runnable catcher){return onErrorRun(catcher);}
+	public synchronized Promise<T>     onError(Runnable catcher){return onErrorRun(catcher);}
 	public synchronized <R> Promise<R> asyncOnError(Function<Throwable, Promise<R>> catcher){return asyncOnErrorApply(catcher);}
 	public synchronized <R> Promise<R> asyncOnError(Supplier<Promise<R>> catcher){return asyncOnErrorGet(catcher);}
 	
 	// on settled
 	public synchronized <R> Promise<R> onSettled(Supplier<R> settler){return onSettledGet(settler);}
-	public synchronized Promise<Void>  onSettled(Runnable settler){return onSettledRun(settler);}
+	public synchronized Promise<T>     onSettled(Runnable settler){return onSettledRun(settler);}
 	public synchronized <R> Promise<R> asyncOnSettled(Supplier<Promise<R>> settler){return asyncOnSettledGet(settler);}
 	
 	
@@ -471,7 +474,7 @@ class SyncCallback<T, R> implements Callback<T, R>{
 	Promise<R> next;
 	
 	SyncCallback(Function<T, R> then, Function<Throwable, R> catcher){
-this.next = new Promise<R>();
+		this.next = new Promise<R>();
 		
 		if (then != null)
 			this.then = then;
