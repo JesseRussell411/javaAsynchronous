@@ -147,9 +147,9 @@ public class Async {
 				
 				// at this point yield has stopped blocking which should mean that the promise is complete.
 				if (promise.isRejected()) {
-					throw promise.getException();
+					throw promise.getError();
 				}
-				else if (promise.isResolved()) {
+				else if (promise.isFulfilled()) {
 					return promise.getResult();
 				}
 				else {
@@ -185,14 +185,14 @@ public class Async {
 		 * @return whatever was returned by the function;
 		 */
 		public <T> T func(Supplier<T> func) {
-			return apply(Promise.threadInit(func));
+			return apply(Promise.asyncGet(func));
 		}
 		
 		/**
 		 * Asynchronously waits for the given function to run in a separate thread.
 		 * */
 		public void func(Runnable func) {
-			apply(Promise.threadInit(func));
+			apply(Promise.asyncRun(func));
 		}
 		
 		// utils:
@@ -283,7 +283,7 @@ public class Async {
 					
 					// awaitResult contains a promise returned by yield
 					// This promise needs to add the instance back onto the execution queue when it completes.
-					coThread.getResult().onFinally(() -> {
+					coThread.getResult().onSettled(() -> {
 						asyncAwaitCompleteNofify(this);
 					});
 				}

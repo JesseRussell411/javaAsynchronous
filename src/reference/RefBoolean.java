@@ -7,4 +7,6 @@ public class RefBoolean{
 	}
 	public boolean get() { return value; }
 	public void set(boolean value) { this.value = value; }
+	
+	public void toggle() { value = !value; }
 }

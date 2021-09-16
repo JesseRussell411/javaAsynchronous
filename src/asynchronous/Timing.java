@@ -20,10 +20,10 @@ public class Timing {
 		return Promise.threadInit((resolve, reject) -> {
 			try {
 				Thread.sleep(sleepForMilliseconds, sleepForNanoseconds);
-				resolve.accept(func.get());
+				resolve.apply(func.get());
 			}
 			catch(Exception e) {
-				reject.accept(e);
+				reject.apply(e);
 			}
 		});
 	}

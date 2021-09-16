@@ -7,4 +7,9 @@ public class RefLong{
 	}
 	public long get() { return value; }
 	public void set(long value) { this.value = value; }
+	
+	public long incrementAndGet() { return ++value; }
+	public long getAndIncrement() { return value++; }
+	public long decrementAndGet() { return --value; }
+	public long getAndDecrement() { return value--; }
 }

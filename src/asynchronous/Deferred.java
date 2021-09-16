@@ -16,7 +16,7 @@ public class Deferred<T> implements Future<T> {
 	// properties:
 	public Task<T> getTask() { return task; }
 	public Promise<T> getPromise() { return task.promise; }
-	public boolean isResolved() { return task.isResolved(); }
+	public boolean isResolved() { return task.isFulfilled(); }
     public boolean isRejected() { return task.isRejected(); }
     public boolean isFinalized() { return task.isFinalized(); }
     @Override

@@ -16,7 +16,7 @@ public class Task<T> implements Future<T>{
     @Override
     public boolean isCancelled() { return isCancelled; }
     public T getResult() { return promise.getResult(); }
-    public Throwable getException() { return promise.getException(); }
+    public Throwable getException() { return promise.getError(); }
 	
     // constructors:
     Task(){
