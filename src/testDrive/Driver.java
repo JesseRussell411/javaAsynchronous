@@ -15,20 +15,32 @@ public class Driver {
 //		return a.get().asyncThen(ar -> 
 //					 b.get().asyncThen(br -> 
 //							   c.get().then(cr ->
-//									a.toString()
-//									+ b.toString()
-//									+ c.toString())));
+//									ar.toString()
+//									+ br.toString()
+//									+ cr.toString())));
 		
-		// with async
-		return async.def(
-			await -> 
-			await.apply(a.get()).toString()
-			+ await.apply(b.get()).toString()
-			+ await.apply(c.get()).toString()
+//		// with async
+//		return async.def(
+//			await -> 
+//			await.apply(a.get()).toString() +
+//			await.apply(b.get()).toString() +
+//			await.apply(c.get()).toString()
+//		).get();
+			
+		// with async parallel:
+		final var ap = a.get();
+		final var bp = b.get();
+		final var cp = c.get();
+		
+		return async.def(await ->
+			await.apply(ap).toString() +
+			await.apply(bp).toString() +
+			await.apply(cp).toString()
 		).get();
 	}
 	
 	public static void main(String[] args) throws InterruptedException{
+		AsyncTriConcatenater(() -> Promise.resolved("----------hello "), () -> Promise.resolved("world"), () -> Promise.resolved("!")).thenAccept(r -> System.out.println(r));
 		
 		// *** Out-dated documentation, sorry about that
 		// Instructions:

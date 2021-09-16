@@ -6,7 +6,7 @@ import java.util.concurrent.TimeoutException;
 import java.util.function.*;
 
 
-/** A task which is resolve or rejected with public methods instead of an initializer. */
+/** contains a task and is resolve or rejected with public methods instead of an initializer. */
 public class Deferred<T> implements Future<T> {
 	public final Promise<T> promise;
 	public final Task<T> task;
@@ -25,6 +25,28 @@ public class Deferred<T> implements Future<T> {
 	}
 	public boolean reject(Throwable error) {
 		return promise.reject(error);
+	}
+	
+	public boolean resolveFrom(Supplier<T> resultGetter) {
+		synchronized(promise) {
+			if (promise.isSettled()) {
+				return false;
+			}
+			else {
+				return promise.resolve(resultGetter.get());
+			}
+		}
+	}
+	
+	public boolean rejectFrom(Supplier<Throwable> errorGetter) {
+		synchronized(promise) {
+			if (promise.isSettled()) {
+				return false;
+			}
+			else {
+				return promise.reject(errorGetter.get());
+			}
+		}
 	}
 	
 	@Override

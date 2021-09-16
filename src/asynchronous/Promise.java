@@ -26,16 +26,20 @@ public class Promise<T> implements Future<T>{
 	public T getResult() { return result; }
 	public Throwable getError() { return error; }
 	
+	// every mutating method in this class is synchronized so that it doesn't break and stuff
 	synchronized boolean resolve(T result) {
 		if (isSettled()) {
 			return false;
 		}
 		else {
+			// apply state and result
 			fulfilled = true;
 			this.result = result;
 			
+			// call the callbacks with the new result
 			resolveCallbacks();
 			
+			// notify any waiting threads (in the await method)
 			notifyAll();
 			return true;
 		}
@@ -45,11 +49,14 @@ public class Promise<T> implements Future<T>{
 			return false;
 		}
 		else{
+			// apply state and result
 			rejected = true;
 			this.error = error;
 			
+			// reject the callbacks with the new error
 			rejectCallbacks();
 			
+			// notify any waiting threads (in the await method)
 			notifyAll();
 			return true;
 		}
@@ -82,13 +89,16 @@ public class Promise<T> implements Future<T>{
 	}
 	
 	private synchronized <R> Promise<R> thenApply(Callback<T, R> callback){
-		callbacks.add(callback);
-		
+		// if the promise has already been settled: run the callback now
+		// instead of putting it in the queue
 		if (isFulfilled())
-			resolveCallbacks();
+			callback.applyResolve(result);
 		else if (isRejected())
-			rejectCallbacks();
+			callback.applyReject(error);
+		else
+			callbacks.add(callback);
 		
+		// return the callback's promise
 		return callback.getNext();
 	}
 	
@@ -97,10 +107,10 @@ public class Promise<T> implements Future<T>{
 		return thenApply(new SyncCallback<T, R>(then, catcher));
 	}
 	
-	public synchronized Promise<Void> thenAccept(Consumer<T> then, Consumer<Throwable> catcher){
+	public synchronized Promise<T> thenAccept(Consumer<T> then, Consumer<Throwable> catcher){
 		return thenApply(t -> {
 			then.accept(t);
-			return null;
+			return t;
 		}, e -> {
 			catcher.accept(e);
 			return null;
@@ -111,10 +121,10 @@ public class Promise<T> implements Future<T>{
 		return thenApply(t -> then.get(), e -> catcher.get());
 	}
 	
-	public synchronized Promise<Void> thenRun(Runnable then, Runnable catcher){
+	public synchronized Promise<T> thenRun(Runnable then, Runnable catcher){
 		return thenApply(t -> {
 			then.run();
-			return null;
+			return t;
 		}, e -> {
 			catcher.run();
 			return null;
@@ -135,10 +145,10 @@ public class Promise<T> implements Future<T>{
 		return thenApply(then, null);
 	}
 	
-	public synchronized Promise<Void> thenAccept(Consumer<T> then){
+	public synchronized Promise<T> thenAccept(Consumer<T> then){
 		return thenApply(t -> {
 			then.accept(t);
-			return null;
+			return t;
 		});
 	}
 	
@@ -146,10 +156,10 @@ public class Promise<T> implements Future<T>{
 		return thenApply(r -> then.get());
 	}
 	
-	public synchronized Promise<Void> thenRun(Runnable then){
+	public synchronized Promise<T> thenRun(Runnable then){
 		return thenApply(t -> {
 			then.run();
-			return null;
+			return t;
 		});
 	}
 	
@@ -214,17 +224,17 @@ public class Promise<T> implements Future<T>{
 	// auto-FunctionType versions:
 	// then and error
 	public synchronized <R> Promise<R> then(Function<T, R> then, Function<Throwable, R> catcher){return thenApply(then, catcher);}
-	public synchronized Promise<Void>  then(Consumer<T> then, Consumer<Throwable> catcher){return thenAccept(then, catcher);}
+	public synchronized Promise<T>     then(Consumer<T> then, Consumer<Throwable> catcher){return thenAccept(then, catcher);}
 	public synchronized <R> Promise<R> then(Supplier<R> then, Supplier<R> catcher){return thenGet(then, catcher);}
-	public synchronized Promise<Void>  then(Runnable then, Runnable catcher){return thenRun(then, catcher);}
+	public synchronized Promise<T>     then(Runnable then, Runnable catcher){return thenRun(then, catcher);}
 	public synchronized <R> Promise<R> asyncThen(Function<T, Promise<R>> then, Function<Throwable, Promise<R>> catcher){return asyncThenApply(then, catcher);}
 	public synchronized <R> Promise<R> asyncThen(Supplier<Promise<R>> then, Supplier<Promise<R>> catcher){return asyncThenGet(then, catcher);}
 	
 	// just then
 	public synchronized <R> Promise<R> then(Function<T, R> then){return thenApply(then);}
-	public synchronized Promise<Void>  then(Consumer<T> then){return thenAccept(then);}
+	public synchronized Promise<T>     then(Consumer<T> then){return thenAccept(then);}
 	public synchronized <R> Promise<R> then(Supplier<R> then){return thenGet(then);}
-	public synchronized Promise<Void>  then(Runnable then){return thenRun(then);}
+	public synchronized Promise<T>     then(Runnable then){return thenRun(then);}
 	public synchronized <R> Promise<R> asyncThen(Function<T, Promise<R>> then){return asyncThenApply(then);}
 	public synchronized <R> Promise<R> AsyncThen(Supplier<Promise<R>> then){return asyncThenGet(then);}
 	
@@ -327,6 +337,10 @@ public class Promise<T> implements Future<T>{
 	}
 	
 	//factories:
+	/**
+	 * Runs the given function in parallel
+	 * @return Resolves when function completes (with the output of the function) and rejects if the function throws an error.
+	 */
 	public static <T> Promise<T> asyncGet(Supplier<T> func){
 		final var promise = new Promise<T>();
 		final var thread = new Thread(() ->{
@@ -342,6 +356,10 @@ public class Promise<T> implements Future<T>{
 		return promise;
 	}
 	
+	/**
+	 * Runs the given function in parallel
+	 * @return Resolves when function completes and rejects if the function throws an error.
+	 */
 	public static Promise<Void> asyncRun(Runnable func){
 		final var promise = new Promise<Void>();
 		final var thread = new Thread(() -> {
@@ -358,32 +376,47 @@ public class Promise<T> implements Future<T>{
 		return promise;
 	}
 	
-	public static <T> Promise<T> threadInit(BiConsumer<Function<T, Boolean>, Function<Throwable, Boolean>> func){
+	/**
+	 * Constructs a new Promise by running the initializer in parallel.
+	 */
+	public static <T> Promise<T> threadInit(BiConsumer<Function<T, Boolean>, Function<Throwable, Boolean>> initializer){
 		return new Promise<T>((resolve, reject) -> {
-			final var thread = new Thread(() -> func.accept(resolve, reject));
+			final var thread = new Thread(() -> initializer.accept(resolve, reject));
 			thread.start();
 		});
 	}
 	
-	public static <T> Promise<T> threadInit(Consumer<Function<T, Boolean>> func){
+	/**
+	 * Constructs a new Promise by running the initializer in parallel.
+	 */
+	public static <T> Promise<T> threadInit(Consumer<Function<T, Boolean>> initializer){
 		return new Promise<T>((resolve) -> {
-			final var thread = new Thread(() -> func.accept(resolve));
+			final var thread = new Thread(() -> initializer.accept(resolve));
 			thread.start();
 		});
 	}
 	
+	/**
+	 * Constructs a promise that is already resolved with the given result.
+	 */
 	public static <T> Promise<T> resolved(T result){
 		final var promise = new Promise<T>();
 		promise.resolve(result);
 		return promise;
 	}
 	
+	/**
+	 * Constructs a promise that is already rejected with the given error.
+	 */
 	public static <T> Promise<T> rejected(Throwable error){
 		final var promise = new Promise<T>();
 		promise.reject(error);
 		return promise;
 	}
 	
+	/**
+	 * Converts the given Future to a Promise.
+	 */
 	public static <T> Promise<T> fromFuture(Future<T> future){
 		if (future instanceof Promise<T> p)
 			return p;

@@ -6,7 +6,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.function.*;
 
-/** contains a promise and a method to cancel */
+/** contains a promise with a public method to cancel */
 public class Task<T> implements Future<T>{
 	public final Promise<T> promise;
 	public BiConsumer<TaskCancelException, Boolean> onCancel;
@@ -29,6 +29,7 @@ public class Task<T> implements Future<T>{
 		promise = new Promise<T>();
 		onCancel = (e, b) -> {};
 	}
+	
 	@Override
 	public boolean cancel(boolean mayInterruptIfRunning) {
 		synchronized(promise) {
