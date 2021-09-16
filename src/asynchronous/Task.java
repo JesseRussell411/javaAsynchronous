@@ -10,14 +10,9 @@ import java.util.function.*;
 /** A promise that can be canceled */
 public class Task<T> implements Future<T>{
 	// fields:
-	Promise<T> promise;
+	public final Promise<T> promise;
 	boolean isCancelled;
 	
-	// properties:
-	public Promise<T> getPromise() { return promise; }
-	public boolean isResolved() { return promise.isResolved(); }
-    public boolean isRejected() { return promise.isRejected(); }
-    public boolean isFinalized() { return promise.isFinalized(); }
     @Override
     public boolean isCancelled() { return isCancelled; }
     public T getResult() { return promise.getResult(); }
@@ -41,46 +36,6 @@ public class Task<T> implements Future<T>{
 	}
 	
 	// everything else:
-	public T await() throws UncheckedInterruptedException, Throwable { return promise.await(); }
-	public T await(long millisecondTimeout) throws UncheckedInterruptedException, Throwable { return promise.await(millisecondTimeout); }
-	public T await(long millisecondTimeout, int nanoSecondTimeout) throws UncheckedInterruptedException, Throwable { return promise.await(millisecondTimeout, nanoSecondTimeout); }
-	
-	// o------------------------------------------o
-    // | then, onError, onComplete, and onCancel: |
-    // o------------------------------------------o
-	public synchronized <R> Promise<R> thenApply(Function<T, R> func) { return promise.thenApply(func); }
-    public synchronized <R> Promise<R> then(Function<T, R> func) { return promise.then(func); }
-    public synchronized <R> Promise<R> thenGet(Supplier<R> func) { return promise.thenGet(func); }
-    public synchronized <R> Promise<R> then(Supplier<R> func) { return promise.then(func); }
-    public synchronized Promise<T> thenAccept(Consumer<T> func) { return promise.thenAccept(func); }
-    public synchronized Promise<T> then(Consumer<T> func) { return promise.then(func); }
-    public synchronized Promise<T> thenRun(Runnable func) { return promise.thenRun(func); }
-    public synchronized Promise<T> then(Runnable func) { return promise.then(func); }
-    public synchronized <R> Promise<R> asyncThenApply(Function<T, Future<R>> func) { return promise.asyncThenApply(func); }
-    public synchronized <R> Promise<R> asyncThen(Function<T, Future<R>> func) { return promise.asyncThen(func); }
-    public synchronized <R> Promise<R> asyncThenGet(Supplier<Future<R>> func) { return promise.asyncThenGet(func); }
-    public synchronized <R> Promise<R> asyncThen(Supplier<Future<R>> func) { return promise.asyncThen(func); }
-    
-    
-    public synchronized <R> Promise<R> onCatchApply(Function<Throwable, R> func) { return promise.onCatchApply(func); }
-    public synchronized <R> Promise<R> onCatch(Function<Throwable, R> func) { return promise.onCatch(func); }
-    public synchronized Promise<Void> onCatchAccept(Consumer<Throwable> func) { return promise.onCatchAccept(func); }
-    public synchronized Promise<Void> onCatch(Consumer<Throwable> func) { return promise.onCatch(func); }
-    public synchronized Promise<Void> onCatchRun(Runnable func) { return promise.onCatchRun(func); }
-    public synchronized Promise<Void> onCatch(Runnable func) { return promise.onCatch(func); }
-    public synchronized <R> Promise<R> onCatchGet(Supplier<R> func) { return promise.onCatchGet(func); }
-    public synchronized <R> Promise<R> onCatch(Supplier<R> func) { return promise.onCatch(func); }
-    public synchronized <R> Promise<R> asyncOnCatchApply(Function<Throwable, Future<R>> func) { return promise.asyncOnCatchApply(func); }
-    public synchronized <R> Promise<R> asyncOnCatch(Function<Throwable, Future<R>> func) { return promise.asyncOnCatch(func); }
-    public synchronized <R> Promise<R> asyncOnCatchGet(Supplier<Future<R>> func) { return promise.asyncOnCatchGet(func); }
-    public synchronized <R> Promise<R> asyncOnCatch(Supplier<Future<R>> func) { return promise.asyncOnCatch(func); }
-    
-    public synchronized <R> Promise<R> onFinallyGet(Supplier<R> func) { return promise.onFinallyGet(func); }
-    public synchronized <R> Promise<R> onFinally(Supplier<R> func) { return promise.onFinally(func); }
-    public synchronized Promise<Void> onFinallyRun(Runnable func) { return promise.onFinallyRun(func); }
-    public synchronized Promise<Void> onFinally(Runnable func) { return promise.onFinally(func); }
-    public synchronized <R> Promise<R> asyncOnFinallyGet(Supplier<Future<R>> func) { return promise.asyncOnFinallyGet(func); }
-    public synchronized <R> Promise<R> asyncOnFinally(Supplier<Future<R>> func) { return promise.asyncOnFinally(func); }
     
     // onCancel:
     public static class IllegalCancelledException extends IllegalStateException {
