@@ -1,16 +1,8 @@
 package asynchronous;
 import java.util.LinkedList;
 import java.util.Queue;
-import java.util.concurrent.CancellationException;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.Future;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.*;
 
-import reference.*;
 
 interface Callback<T, R>{
 	boolean applyResolve(T result);
@@ -72,8 +64,8 @@ class SyncCallback<T, R> implements Callback<T, R>{
 }
 
 class AsyncCallback<T, R> implements Callback<T, R>{
-	Function<T, R> then;
-	Function<Throwable, R> catcher;
+	Function<T, Promise<R>> then;
+	Function<Throwable, Promise<R>> catcher;
 	Promise<R> next;
 	
 	AsyncCallback(Function<T, Promise<R>> then, Function<Throwable, Promise<R>> catcher){
@@ -185,7 +177,7 @@ public class Promise<T>{
 		else if (isRejected())
 			rejectCallbacks();
 		
-		return callback.next;
+		return callback.getNext();
 	}
 	
 	// then and error
@@ -253,7 +245,9 @@ public class Promise<T>{
 		return thenApply(new AsyncCallback<T, R>(then, null));
 	}
 	
-	public synchronized <R>
+	public synchronized <R> Promise<R> asyncThenGet(Supplier<Promise<R>> then){
+		return asyncThenApply(t -> then.get());
+	}
 	
 	// on error
 	public synchronized <R> Promise<R> onErrorApply(Function<Throwable, R> catcher){
@@ -278,6 +272,14 @@ public class Promise<T>{
 		});
 	}
 	
+	public synchronized <R> Promise<R> asyncOnErrorApply(Function<Throwable, Promise<R>> catcher){
+		return asyncThenApply(null, catcher);
+	}
+	
+	public synchronized <R> Promise<R> asyncOnErrorGet(Supplier<Promise<R>> catcher){
+		return asyncOnErrorApply(e -> catcher.get());
+	}
+	
 	// on settled
 	public synchronized <R> Promise<R> onSettledGet(Supplier<R> settler){
 		return thenApply(t -> settler.get(), t -> settler.get());
@@ -287,6 +289,40 @@ public class Promise<T>{
 		return onSettledGet(() ->{
 			settler.run();
 			return null;
-		})
+		});
 	}
+	
+	public synchronized <R> Promise<R> asyncOnSettledGet(Supplier<Promise<R>> settler){
+		return asyncThenApply(t -> settler.get(), e -> settler.get());
+	}
+	
+	// auto-FunctionType versions:
+	// then and error
+	public synchronized <R> Promise<R> then(Function<T, R> then, Function<Throwable, R> catcher){return thenApply(then, catcher);}
+	public synchronized Promise<Void>  then(Consumer<T> then, Consumer<Throwable> catcher){return thenAccept(then, catcher);}
+	public synchronized <R> Promise<R> then(Supplier<R> then, Supplier<R> catcher){return thenGet(then, catcher);}
+	public synchronized Promise<Void>  then(Runnable then, Runnable catcher){return thenRun(then, catcher);}
+	public synchronized <R> Promise<R> asyncThen(Function<T, Promise<R>> then, Function<Throwable, Promise<R>> catcher){return asyncThenApply(then, catcher);}
+	public synchronized <R> Promise<R> asyncThen(Supplier<Promise<R>> then, Supplier<Promise<R>> catcher){return asyncThenGet(then, catcher);}
+	
+	// just then
+	public synchronized <R> Promise<R> then(Function<T, R> then){return thenApply(then);}
+	public synchronized Promise<Void>  then(Consumer<T> then){return thenAccept(then);}
+	public synchronized <R> Promise<R> then(Supplier<R> then){return thenGet(then);}
+	public synchronized Promise<Void>  then(Runnable then){return thenRun(then);}
+	public synchronized <R> Promise<R> asyncThen(Function<T, Promise<R>> then){return asyncThenApply(then);}
+	public synchronized <R> Promise<R> AsyncThen(Supplier<Promise<R>> then){return asyncThenGet(then);}
+	
+	// on error
+	public synchronized <R> Promise<R> onError(Function<Throwable, R> catcher){return onErrorApply(catcher);}
+	public synchronized Promise<Void> onError(Consumer<Throwable> catcher) {return onErrorAccept(catcher);}
+	public synchronized <R> Promise<R> onError(Supplier<R> catcher){return onErrorGet(catcher);}
+	public synchronized Promise<Void> onError(Runnable catcher){return onErrorRun(catcher);}
+	public synchronized <R> Promise<R> asyncOnError(Function<Throwable, Promise<R>> catcher){return asyncOnErrorApply(catcher);}
+	public synchronized <R> Promise<R> asyncOnError(Supplier<Promise<R>> catcher){return asyncOnErrorGet(catcher);}
+	
+	// on settled
+	public synchronized <R> Promise<R> onSettle(Supplier<R> settler){return onSettledGet(settler);}
+	public synchronized Promise<Void> onSettled(Runnable settler){return onSettledRun(settler);}
+	public synchronized <R> Promise<R> asyncOnSettled(Supplier<Promise<R>> settler){return asyncOnSettledGet(settler);}
 }
