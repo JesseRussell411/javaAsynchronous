@@ -259,6 +259,10 @@ public class Promise<T> implements Future<T>{
 		else if (isFulfilled())
 			return result;
 		
+		if (timeout <= 0) {
+			return null;
+		}
+		
 		final var timedOut = new RefBoolean(false);
 		
 		final var timerThread = new Thread(() -> {
@@ -277,7 +281,7 @@ public class Promise<T> implements Future<T>{
 		
 		timerThread.start();
 		
-		while(isPending() &&  !timedOut.get()) {
+		while(isPending() && !timedOut.get()) {
 			notifyAll();
 			wait();
 		}
