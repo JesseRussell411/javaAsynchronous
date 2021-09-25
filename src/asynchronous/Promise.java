@@ -281,8 +281,8 @@ public class Promise<T> implements Future<T>{
 		
 		timerThread.start();
 		
+		notifyAll();
 		while(isPending() && !timedOut.get()) {
-			notifyAll();
 			wait();
 		}
 		
@@ -298,8 +298,8 @@ public class Promise<T> implements Future<T>{
 	}
 	
 	public synchronized T await() throws InterruptedException, ExecutionException{
+		notifyAll();
 		while(isPending()) {
-			notifyAll();
 			wait();
 		}
 		
