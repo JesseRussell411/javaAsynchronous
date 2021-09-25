@@ -63,12 +63,17 @@ public class Async {
 	 * Runs all Async instances in the execution queue.
 	 * @throws InterruptedException
 	 */
-	public void execute() throws InterruptedException, ExecutionException{
+	public void execute(int maxThreadCount) throws InterruptedException {
+		if (maxThreadCount < 0)
+			throw new IllegalArgumentException("maxThreadCount must be >= 1");
+		
+		final var threadCount = new AtomicInteger();
 		// execution loop
 		do {
 			AsyncSupplier<?>.CalledInstance instance;
-			while((instance = executionQueue.poll()) != null) {
-				instance.execute().await();
+			while(threadCount.get() < maxThreadCount && (instance = executionQueue.poll()) != null) {
+				threadCount.incrementAndGet();
+				instance.execute().onSettledRun(() -> threadCount.decrementAndGet());
 			}
 			
 			// execution queue is empty, as long as there's still instances running:
@@ -77,7 +82,7 @@ public class Async {
 			synchronized(executeWaitLock) {
 				try {
 					executeWaitLock.notify();
-					while(runningInstanceCount.get() > 0 && executionQueue.isEmpty()) {
+					while(runningInstanceCount.get() > 0 && executionQueue.isEmpty() && threadCount.get() >= maxThreadCount) {
 						executeWaitLock.wait();
 					}
 				}
@@ -91,7 +96,7 @@ public class Async {
 		} while(!(runningInstanceCount.get() == 0 && executionQueue.isEmpty()));
 	}
 	
-	public void execute(AtomicBoolean untilTrue) throws InterruptedException, ExecutionException {
+	public void execute(AtomicBoolean untilTrue, int maxThreadCount) throws InterruptedException {
 		boolean firstLoop = true;
 		try {
 			while(!untilTrue.get()) {
@@ -99,7 +104,7 @@ public class Async {
 					Thread.sleep(1);
 				}
 				
-				execute();
+				execute(maxThreadCount);
 				
 				firstLoop = false;
 			}
@@ -109,6 +114,13 @@ public class Async {
 		}
 	}
 	
+	public void execute(AtomicBoolean untilTrue) throws InterruptedException {
+		execute(untilTrue, 1);
+	}
+	
+	public void execute() throws InterruptedException{
+		execute(1);
+	}
 	
 	
 	// Await functional class for awaiting promises in an Async functional class.
@@ -256,7 +268,10 @@ public class Async {
 						//
 					}).ifNotDefined(() -> {
 						//completed:
-						deferred.resolve(this.result);
+						synchronized(this) {
+							coThread.close();
+							deferred.resolve(this.result);
+						}
 						//
 					});
 				}, error ->{
@@ -268,7 +283,9 @@ public class Async {
 			
 			CalledInstance() {
 				coThread = new CoThread<>(yield -> {
-					result = func.apply(new Await(yield));
+					synchronized(this) {
+						result = func.apply(new Await(yield));
+					}
 				}, name);
 			}
 			
