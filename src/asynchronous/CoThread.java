@@ -5,50 +5,140 @@ import java.util.function.*;
 import functionPlus.*;
 
 public class CoThread<R> implements AutoCloseable{
-	private final ThreadHolder<R> that;
-	public CoThread(Consumer<Consumer<R>> func) {
-		that = new ThreadHolder(func);
+	private final Thread thread;
+	private Deferred<Result<R>> deferred;
+	private Yield yield = new Yield();
+	// flags:
+	private boolean running = false;
+	private boolean started = false;
+	private boolean dead = false;
+	
+	// flag getters:
+	public boolean isRunning() { return running; }
+	public boolean isStarted() { return started; }
+	public boolean isDead() { return dead; }
+	
+	public CoThread(Consumer<Yield> func, String name) {
+		thread = new Thread(makeBody(func), name);
+	}
+	public CoThread(Consumer<Yield> func) {
+		thread = new Thread(makeBody(func));
 	}
 	
-	
-	
-	
-	public class Yield {
-		private Yield() {}
-		public void accept(R result) throws InterruptedException {
-			synchronized(that) {
-				that.result = result;
-				that.running = false;
-				that.deferred.resolve(true);
-				
-				
-				that.notifyAll();
-				while(!that.running) {
-					that.wait();
+	private Runnable makeBody(Consumer<Yield> func) {
+		return () -> {
+			synchronized(yield) {
+				try {
+					func.accept(yield);
 				}
+				catch(Throwable e) {
+					deferred.reject(e);
+				}
+				finally {
+					running = false;
+					dead = true;
+					deferred.resolve(new Result<R>());
+				}
+			}
+		};
+	}
+	
+	public synchronized Promise<Result<R>> run() {
+		synchronized(yield) {
+			if (running || dead) {
+				return deferred.promise;
+			}
+			else {
+				deferred = new Deferred<Result<R>>();
+				running = true;
+				
+				if (!started) {
+					thread.start();
+					started = true;
+				}
+				
+				yield.notifyAll();
+				
+				return deferred.promise;
 			}
 		}
 	}
 	
-	private class ThreadHolder<R>{
-		final Thread thread;
-		R result = null;
-		boolean completed = false;
-		boolean running = false;
-		boolean started = false;
-		Deferred<Result<R>> deferred = null;
-		ThreadHolder(Consumer<Yield> func){
-			thread = new Thread(() -> {
-				started = true;
-				func.accept(new Yield());
-				
-				//complete
-				completed = true;
-				running = false;
-			});
+	public class Yield {
+		private Yield() {}
+		public synchronized void accept(R value) throws InterruptedException {
+			running = false;
+			deferred.resolve(new Result<R>(value));
+			
+			while(!running) {
+				wait();
+			}
 		}
 	}
+
+	@Override
+	public void close() {
+		thread.interrupt();
+	}
 }
+
+
+
+
+
+//
+//
+//
+//
+//
+//public class CoThread<R> implements AutoCloseable{
+//	private final ThreadHolder<R> that;
+//	public CoThread(Consumer<Consumer<R>> func) {
+//		that = new ThreadHolder(func);
+//	}
+//	
+//	
+//	
+//	
+//	public class Yield {
+//		private Yield() {}
+//		public void accept(R result) throws InterruptedException {
+//			synchronized(that) {
+//				that.result = result;
+//				that.running = false;
+//				that.deferred.resolve(true);
+//				
+//				
+//				that.notifyAll();
+//				while(!that.running) {
+//					that.wait();
+//				}
+//			}
+//		}
+//	}
+//	
+//	private class ThreadHolder<R>{
+//		final Thread thread;
+//		R result = null;
+//		boolean completed = false;
+//		boolean running = false;
+//		boolean started = false;
+//		Deferred<Result<R>> deferred = null;
+//		ThreadHolder(Consumer<Yield> func){
+//			thread = new Thread(() -> {
+//				started = true;
+//				func.accept(new Yield());
+//				
+//				//complete
+//				completed = true;
+//				running = false;
+//			});
+//		}
+//	}
+//}
+
+
+
 //public class CoThread<T> implements AutoCloseable {
 //	private CoThreadHolder<T> threadHolder;
 //	public boolean notComplete() { return threadHolder.notComplete(); }

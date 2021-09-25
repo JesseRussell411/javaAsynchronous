@@ -2,6 +2,7 @@ package asynchronous.asyncAwait;
 
 import java.util.Queue;
 import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -13,20 +14,7 @@ import asynchronous.UncheckedInterruptedException;
 import asynchronous.futures.Deferred;
 import asynchronous.futures.Promise;
 import exceptionsPlus.UncheckedWrapper;
-import functionPlus.HeptaConsumer;
-import functionPlus.HeptaFunction;
-import functionPlus.HexaConsumer;
-import functionPlus.HexaFunction;
-import functionPlus.NonaConsumer;
-import functionPlus.NonaFunction;
-import functionPlus.OctoConsumer;
-import functionPlus.OctoFunction;
-import functionPlus.PentaConsumer;
-import functionPlus.PentaFunction;
-import functionPlus.QuadConsumer;
-import functionPlus.QuadFunction;
-import functionPlus.TriConsumer;
-import functionPlus.TriFunction;
+import functionPlus.*;
 
 /**
  * Asynchronous function used for asynchronous programming. Call Async.execute at the end of the main method to run called Async functions.
@@ -54,7 +42,7 @@ public class Async {
 	 * Notify Async class that an awaited promise has completed
 	 * @param inst The instance awaiting the promise
 	 */
-	private void asyncAwaitCompleteNofify(AsyncSupplier<?>.CalledInstance inst) {
+	private void asyncAwaitCompleteNotify(AsyncSupplier<?>.CalledInstance inst) {
 		synchronized(executeWaitLock) {
 			executionQueue.add(inst);
 			executeWaitLock.notify();
@@ -75,12 +63,12 @@ public class Async {
 	 * Runs all Async instances in the execution queue.
 	 * @throws InterruptedException
 	 */
-	public void execute() throws UncheckedInterruptedException{
+	public void execute() throws InterruptedException, ExecutionException{
 		// execution loop
 		do {
 			AsyncSupplier<?>.CalledInstance instance;
 			while((instance = executionQueue.poll()) != null) {
-				instance.execute();
+				instance.execute().await();
 			}
 			
 			// execution queue is empty, as long as there's still instances running:
@@ -103,7 +91,7 @@ public class Async {
 		} while(!(runningInstanceCount.get() == 0 && executionQueue.isEmpty()));
 	}
 	
-	public void execute(AtomicBoolean untilTrue) throws UncheckedInterruptedException {
+	public void execute(AtomicBoolean untilTrue) throws InterruptedException, ExecutionException {
 		boolean firstLoop = true;
 		try {
 			while(!untilTrue.get()) {
@@ -125,10 +113,11 @@ public class Async {
 	
 	// Await functional class for awaiting promises in an Async functional class.
 	public class Await{
-		private final Consumer<Promise<?>> yield;
+//		private final Consumer<Promise<?>> yield;
+		private final CoThread<Promise<?>>.Yield yield;
 		
 		// can't be instantiated by the user. Only Async and itself (but only Async should)
-		private Await(Consumer<Promise<?>> yield) {
+		private Await(CoThread<Promise<?>>.Yield yield) {
 			this.yield = yield;
 		}
 		
@@ -225,16 +214,18 @@ public class Async {
 		private final Function<Await, T> func;
 		private final String name;
 		
-		
 		public String getName() { return name; }
 		
 		public AsyncSupplier(Function<Await, T> func) {
-			this.func = func;
-			this.name = null;
+			this(func, null);
 		}
+		
 		public AsyncSupplier(Function<Await, T> func, String name) {
 			this.func = func;
-			this.name = name;
+			if (name == null)
+				this.name = "async";
+			else
+				this.name = name;
 		}
 		
 		public Promise<T> get(){
@@ -253,47 +244,26 @@ public class Async {
 			private T result = null;
 			private Deferred<T> deferred;
 			
-			private void resolve(T result) {
-				deferred.resolve(result);
-			}
-			private void reject(Exception exception) {
-				deferred.reject(exception);
-			}
-			public T getResult() { return result; }
-			public void execute() throws UncheckedInterruptedException {
-				boolean coThreadYielded = false;
-				Exception exception = null;
-				try {
-					coThreadYielded = coThread.await();
-				}
-				catch(Exception e) {
-					exception = e;
-				}
-				
-				// was it an error, yield, or completion?
-				if (exception != null) {
-					//error:
-					reject(exception);
-				}
-				else if (coThreadYielded) {
-					// yield:
-					if (coThread.getResult() == null) {
-						throw new NullPointerException("Promise given to await.accept was null.");
-					}
-					
-					// awaitResult contains a promise returned by yield
-					// This promise needs to add the instance back onto the execution queue when it completes.
-					coThread.getResult().onSettled(() -> {
-						asyncAwaitCompleteNofify(this);
+			private Promise<Result<Promise<?>>> execute() {
+				return coThread.run().thenAccept(result -> {
+					result.ifDefined(promise -> {
+						// yielded with promise:
+						if (promise == null)
+							throw new NullPointerException("Promise given to await.accept was null.");
+						
+							// tell the promise to add this called instance back onto the execution queue when it's settled
+						promise.onSettledRun(() -> asyncAwaitCompleteNotify(this));
+						//
+					}).ifNotDefined(() -> {
+						//completed:
+						deferred.resolve(this.result);
+						//
 					});
-				}
-				else {
-					// completion:
-					
-					// The instance has run to the end of it's function. It has completed execution.
-					// it should now contain the result of the execution in it's "result" field.
-					resolve(result);
-				}
+				}, error ->{
+					// threw an error:
+					deferred.reject(error);
+					//
+				});
 			}
 			
 			CalledInstance() {
@@ -302,10 +272,7 @@ public class Async {
 				}, name);
 			}
 			
-			Promise<T> start(){
-				// start coThread
-				coThread.start();
-				
+			Promise<T> start(){				
 				// make a new promise and extract resolve and reject methods
 				deferred = new Deferred<T>();
 				
@@ -708,7 +675,6 @@ public class Async {
 	// o------o
 	// | def: |
 	// o------o
-	
 	public <R> AsyncSupplier<R> def(Function<Await, R> func){
 		return new AsyncSupplier<>(func);
 	}
@@ -818,6 +784,14 @@ public class Async {
 	}
 	public <T1, T2, T3, T4, T5, T6, T7, T8> AsyncOctoConsumer<T1, T2, T3, T4, T5, T6, T7, T8> def(String name, NonaConsumer<Await, T1, T2, T3, T4, T5, T6, T7, T8> func){
 		return new AsyncOctoConsumer<>(func, name);
+	}
+	
+	// special:
+	public AsyncRunnable defRunnable(Consumer<Await> func) {
+		return new AsyncRunnable(func);
+	}
+	public AsyncRunnable defRunnable(String name, Consumer<Await> func) {
+		return new AsyncRunnable(func, name);
 	}
 	// this took forever to type
 }

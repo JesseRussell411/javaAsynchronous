@@ -17,6 +17,7 @@ public class Promise<T> implements Future<T>{
 	private Throwable error = null;
 	private boolean fulfilled;
 	private boolean rejected;
+	private Object awaitLock = new Object();
 	
 	public boolean isPending() { return !fulfilled && !rejected; }
 	public boolean isSettled() { return fulfilled || rejected; }
@@ -38,9 +39,11 @@ public class Promise<T> implements Future<T>{
 			
 			// call the callbacks with the new result
 			resolveCallbacks();
-			
-			// notify any waiting threads (in the await method)
-			notifyAll();
+				
+			synchronized(awaitLock) {
+				// notify any waiting threads (in the await method)
+				awaitLock.notifyAll();
+			}
 			return true;
 		}
 	}
@@ -56,8 +59,10 @@ public class Promise<T> implements Future<T>{
 			// reject the callbacks with the new error
 			rejectCallbacks();
 			
-			// notify any waiting threads (in the await method)
-			notifyAll();
+			synchronized(awaitLock) {
+				// notify any waiting threads (in the await method)
+				awaitLock.notifyAll();
+			}
 			return true;
 		}
 	}
@@ -253,40 +258,36 @@ public class Promise<T> implements Future<T>{
 	
 	
 	// blocking wait
-	public synchronized T await(long timeout, TimeUnit unit) throws InterruptedException, ExecutionException{
-		if (isRejected())
-			throw new ExecutionException(error);
-		else if (isFulfilled())
-			return result;
-		
-		if (timeout <= 0) {
-			return null;
-		}
-		
-		final var timedOut = new RefBoolean(false);
-		
-		final var timerThread = new Thread(() -> {
-			try {
-				if (unit.toMillis(timeout) < Long.MAX_VALUE / 1000)
-					Thread.sleep(unit.toMillis(timeout), (int)(unit.toNanos(timeout) % 1000));
-				else
-					Thread.sleep(unit.toMillis(timeout));
-			}
-			catch(InterruptedException ie) {}
+	public T await(long timeout, TimeUnit unit) throws InterruptedException, ExecutionException{
+		if (isPending() && timeout > 0) {
+			final var timedOut = new RefBoolean(false);
 			
-			timedOut.set(true);
-			notifyAll();
-		});
-		
-		
-		timerThread.start();
-		
-		notifyAll();
-		while(isPending() && !timedOut.get()) {
-			wait();
+			final var timerThread = new Thread(() -> {
+				try {
+					if (unit.toMillis(timeout) < Long.MAX_VALUE / 1000)
+						Thread.sleep(unit.toMillis(timeout), (int)(unit.toNanos(timeout) % 1000));
+					else
+						Thread.sleep(unit.toMillis(timeout));
+				}
+				catch(InterruptedException ie) {}
+				
+				timedOut.set(true);
+				synchronized(awaitLock) {
+					awaitLock.notifyAll();
+				}
+			});
+			
+			
+			timerThread.start();
+			
+			synchronized(awaitLock) {
+				while(isPending() && !timedOut.get()) {
+					awaitLock.wait();
+				}
+			}
+			
+			timerThread.interrupt();
 		}
-		
-		timerThread.interrupt();
 		
 		
 		if (isRejected())
@@ -297,10 +298,11 @@ public class Promise<T> implements Future<T>{
 			return null;
 	}
 	
-	public synchronized T await() throws InterruptedException, ExecutionException{
-		notifyAll();
-		while(isPending()) {
-			wait();
+	public T await() throws InterruptedException, ExecutionException{
+		synchronized(awaitLock) {
+			while(isPending()) {
+				awaitLock.wait();
+			}
 		}
 		
 		if (isRejected())
