@@ -8,10 +8,10 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.*;
 
 import asynchronous.CoThread;
-import asynchronous.Deferred;
-import asynchronous.Promise;
 import asynchronous.Timing;
 import asynchronous.UncheckedInterruptedException;
+import asynchronous.futures.Deferred;
+import asynchronous.futures.Promise;
 import exceptionsPlus.UncheckedWrapper;
 import functionPlus.HeptaConsumer;
 import functionPlus.HeptaFunction;

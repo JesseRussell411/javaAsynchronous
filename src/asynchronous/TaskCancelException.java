@@ -2,6 +2,8 @@ package asynchronous;
 
 import java.util.concurrent.CancellationException;
 
+import asynchronous.futures.Task;
+
 public class TaskCancelException extends CancellationException{
 	private static final long serialVersionUID = 1L;
 	private Task<?> task;

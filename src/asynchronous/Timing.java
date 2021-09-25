@@ -2,6 +2,8 @@ package asynchronous;
 
 import java.util.function.*;
 
+import asynchronous.futures.Promise;
+
 public class Timing {
 	public static Thread setTimeout(Runnable func, long sleepForMilliseconds, int sleepForNanoseconds) {
 		final var thread =  new Thread(() -> {
