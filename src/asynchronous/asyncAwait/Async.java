@@ -4,8 +4,7 @@ import java.util.Queue;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
-import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.*;
 import java.util.function.*;
 
 import asynchronous.CoThread;
@@ -15,6 +14,8 @@ import asynchronous.futures.Deferred;
 import asynchronous.futures.Promise;
 import exceptionsPlus.UncheckedWrapper;
 import functionPlus.*;
+import reference.Ref;
+import message.*;
 
 /**
  * Asynchronous function used for asynchronous programming. Call Async.execute at the end of the main method to run called Async functions.
@@ -63,63 +64,87 @@ public class Async {
 	 * Runs all Async instances in the execution queue.
 	 * @throws InterruptedException
 	 */
-	public void execute(int maxThreadCount) throws InterruptedException {
-		if (maxThreadCount < 0)
-			throw new IllegalArgumentException("maxThreadCount must be >= 1");
+	public void execute(MessageReference<Integer> maxThreadCount, MessageReference<Boolean> listen, MessageReference<Boolean> stop) throws InterruptedException {
+		if (maxThreadCount.get() < 0)
+			throw new IllegalArgumentException("maxThreadCount must be >= 0");
+		
+		maxThreadCount.onSet(v -> {	
+			synchronized(executeWaitLock) {
+				executeWaitLock.notifyAll();
+			}
+		});
+		stop.onSet(v -> {
+			if (v == false)
+				return;
+			
+			synchronized(executeWaitLock) {
+				executeWaitLock.notifyAll();
+			}
+		});
+		listen.onSet(v -> {	
+			synchronized(executeWaitLock) {
+				executeWaitLock.notifyAll();
+			}
+		});
 		
 		final var threadCount = new AtomicInteger();
+		
 		// execution loop
 		do {
 			AsyncSupplier<?>.CalledInstance instance;
-			while(threadCount.get() < maxThreadCount && (instance = executionQueue.poll()) != null) {
+			while(!stop.get() && threadCount.get() < maxThreadCount.get() && (instance = executionQueue.poll()) != null) {
 				threadCount.incrementAndGet();
-				instance.execute().onSettledRun(() -> threadCount.decrementAndGet());
-			}
-			
-			// execution queue is empty, as long as there's still instances running:
-			// Wait for the execution queue to be enqueued with something to run
-			// or for there to be no running instances.
-			synchronized(executeWaitLock) {
-				try {
-					executeWaitLock.notify();
-					while(runningInstanceCount.get() > 0 && executionQueue.isEmpty() && threadCount.get() >= maxThreadCount) {
-						executeWaitLock.wait();
+				
+				instance.execute().onSettledRun(() -> {
+					threadCount.decrementAndGet();
+					synchronized(executeWaitLock) {
+						executeWaitLock.notifyAll();
 					}
-				}
-				catch(InterruptedException ie) {
-					throw new UncheckedInterruptedException(ie);
-				}
+				});
 			}
 			
-			// wait over, if there are no running instances and the executionQueue is empty: 
-			// break and finish execution.
-		} while(!(runningInstanceCount.get() == 0 && executionQueue.isEmpty()));
-	}
-	
-	public void execute(AtomicBoolean untilTrue, int maxThreadCount) throws InterruptedException {
-		boolean firstLoop = true;
-		try {
-			while(!untilTrue.get()) {
-				if (!firstLoop) {
-					Thread.sleep(1);
+			synchronized(executeWaitLock) {
+				executeWaitLock.notifyAll();
+				while(!stop.get()) {
+					// continue waiting conditions:
+					if (maxThreadCount.get() == 0) continue;
+					// exit conditions
+					if (!listen.get() && executionQueue.isEmpty() && runningInstanceCount.get() == 0) break;
+					// resume conditions
+					if (!executionQueue.isEmpty()) break;
+					
+					executeWaitLock.wait();
 				}
-				
-				execute(maxThreadCount);
-				
-				firstLoop = false;
 			}
-		}
-		catch(InterruptedException ie) {
-			throw new UncheckedInterruptedException(ie);
-		}
+		} while(!stop.get() && !(!listen.get() && executionQueue.isEmpty() && runningInstanceCount.get() == 0));
 	}
 	
-	public void execute(AtomicBoolean untilTrue) throws InterruptedException {
-		execute(untilTrue, 1);
+	public void execute(MessageReference<Boolean> listen, MessageReference<Boolean> stop) throws InterruptedException{
+		execute(new MessageReference<Integer>(1), listen, stop);
+	}
+	
+	public void execute(MessageReference<Integer> maxThreadCount) throws InterruptedException{
+		execute(maxThreadCount, new MessageReference<Boolean>(false), new MessageReference<Boolean>(false));
+	}
+	
+	public void execute(int maxThreadCount, boolean listen) throws InterruptedException{
+		execute(new MessageReference<Integer>(maxThreadCount), new MessageReference<Boolean>(listen), new MessageReference<Boolean>(false));
+	}
+	
+	public void execute(int maxThreadCount) throws InterruptedException{
+		execute(new MessageReference<Integer>(maxThreadCount), new MessageReference<Boolean>(false), new MessageReference<Boolean>(false));
+	}
+	
+	public void execute(int maxThreadCount, boolean listen, MessageReference<Boolean> stop) throws InterruptedException{
+		execute(new MessageReference<Integer>(maxThreadCount), new MessageReference<Boolean>(listen), stop);
+	}
+	
+	public void execute(int maxThreadCount, MessageReference<Boolean> stop) throws InterruptedException{
+		execute(new MessageReference<Integer>(maxThreadCount), new MessageReference<Boolean>(false), stop);
 	}
 	
 	public void execute() throws InterruptedException{
-		execute(1);
+		execute(new MessageReference<Integer>(1), new MessageReference<Boolean>(false), new MessageReference<Boolean>(false));
 	}
 	
 	

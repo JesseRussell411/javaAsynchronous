@@ -19,13 +19,13 @@ public class Promise<T> implements Future<T>{
 	private boolean rejected;
 	private Object awaitLock = new Object();
 	
-	public boolean isPending() { return !fulfilled && !rejected; }
-	public boolean isSettled() { return fulfilled || rejected; }
-	public boolean isFulfilled() { return fulfilled; }
-	public boolean isRejected() { return rejected; }
+	public synchronized boolean isPending() { return !fulfilled && !rejected; }
+	public synchronized boolean isSettled() { return fulfilled || rejected; }
+	public synchronized boolean isFulfilled() { return fulfilled; }
+	public synchronized boolean isRejected() { return rejected; }
 	
-	public T getResult() { return result; }
-	public Throwable getError() { return error; }
+	public synchronized T getResult() { return result; }
+	public synchronized Throwable getError() { return error; }
 	
 	// every mutating method in this class is synchronized so that it doesn't break and stuff
 	synchronized boolean resolve(T result) {
