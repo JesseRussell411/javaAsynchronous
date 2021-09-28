@@ -6,12 +6,13 @@ import functionPlus.*;
 
 public class CoThread<R> implements AutoCloseable{
 	private final Thread thread;
-	private Deferred<Result<R>> deferred;
-	private Yield yield = new Yield();
+	private volatile Deferred<Result<R>> deferred;
+	private final Yield yield = new Yield();
+	
 	// flags:
-	private boolean running = false;
-	private boolean started = false;
-	private boolean dead = false;
+	private volatile boolean running = false;
+	private volatile boolean started = false;
+	private volatile boolean dead = false;
 	
 	// flag getters:
 	public boolean isRunning() { return running; }

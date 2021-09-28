@@ -9,8 +9,8 @@ import java.util.function.*;
 import asynchronous.futures.*;
 
 public class MessageReference<T> {
-	private T value = null;
-	private List<Consumer<T>> onSet = new ArrayList<>();
+	private volatile T value = null;
+	private final List<Consumer<T>> onSet = new ArrayList<>();
 	public MessageReference(T value) {
 		this.value = value;
 	}
@@ -28,7 +28,7 @@ public class MessageReference<T> {
 		this.notifyAll();
 	}
 	
-	public void onSet(Consumer<T> action) {
+	public synchronized void onSet(Consumer<T> action) {
 		onSet.add(action);
 	}
 }

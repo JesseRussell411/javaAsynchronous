@@ -106,12 +106,13 @@ public class Async {
 			synchronized(executeWaitLock) {
 				executeWaitLock.notifyAll();
 				while(!stop.get()) {
-					// continue waiting conditions:
-					if (maxThreadCount.get() == 0) continue;
-					// exit conditions
-					if (!listen.get() && executionQueue.isEmpty() && runningInstanceCount.get() == 0) break;
-					// resume conditions
-					if (!executionQueue.isEmpty()) break;
+					// if the max thread count is zero, pause.
+					if (maxThreadCount.get() != 0) {
+						// exit conditions
+						if (!listen.get() && executionQueue.isEmpty() && runningInstanceCount.get() == 0) break;
+						// resume conditions
+						if (!executionQueue.isEmpty()) break;						
+					}
 					
 					executeWaitLock.wait();
 				}
@@ -150,7 +151,6 @@ public class Async {
 	
 	// Await functional class for awaiting promises in an Async functional class.
 	public class Await{
-//		private final Consumer<Promise<?>> yield;
 		private final CoThread<Promise<?>>.Yield yield;
 		
 		// can't be instantiated by the user. Only Async and itself (but only Async should)
@@ -223,14 +223,14 @@ public class Async {
 		
 		// utils:
 		/**
-		 * Non-blocking sleep function. May sleep for longer than the specified time while it waits it's turn to execute.
+		 * Non-blocking sleep function. May sleep for longer than the specified time while the instance waits its turn to execute again.
 		 */
 		public void sleep(long milliseconds, int nanoseconds) {
 			apply(Timing.setTimeout(() -> null, milliseconds, nanoseconds));
 		}
 		
 		/**
-		 * Non-blocking sleep function. May sleep for longer than the specified time while it waits it's turn to execute.
+		 * Non-blocking sleep function. May sleep for longer than the specified time while the instance waits its turn to execute again.
 		 */
 		public void sleep(long milliseconds) {
 			apply(Timing.setTimeout(() -> null, milliseconds));
@@ -278,10 +278,10 @@ public class Async {
 		 */
 		private class CalledInstance {
 			private final CoThread<Promise<?>> coThread;
-			private T result = null;
-			private Deferred<T> deferred;
+			private volatile T result = null;
+			private volatile Deferred<T> deferred;
 			
-			private Promise<Result<Promise<?>>> execute() {
+			private synchronized Promise<Result<Promise<?>>> execute() {
 				return coThread.run().thenAccept(result -> {
 					result.ifDefined(promise -> {
 						// yielded with promise:
@@ -293,10 +293,8 @@ public class Async {
 						//
 					}).ifNotDefined(() -> {
 						//completed:
-						synchronized(this) {
-							coThread.close();
-							deferred.resolve(this.result);
-						}
+						coThread.close();
+						deferred.resolve(this.result);
 						//
 					});
 				}, error ->{
@@ -308,13 +306,11 @@ public class Async {
 			
 			CalledInstance() {
 				coThread = new CoThread<>(yield -> {
-					synchronized(this) {
-						result = func.apply(new Await(yield));
-					}
+					result = func.apply(new Await(yield));
 				}, name);
 			}
 			
-			Promise<T> start(){				
+			private synchronized Promise<T> start(){				
 				// make a new promise and extract resolve and reject methods
 				deferred = new Deferred<T>();
 				

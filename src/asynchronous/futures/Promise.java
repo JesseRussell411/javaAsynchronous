@@ -2,30 +2,26 @@ package asynchronous.futures;
 import java.time.Duration;
 import java.util.LinkedList;
 import java.util.Queue;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.Future;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
-import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.*;
+import java.util.concurrent.atomic.*;
 import java.util.function.*;
 
 import reference.RefBoolean;
 
 public class Promise<T> implements Future<T>{
-	private T result = null;
-	private Throwable error = null;
-	private boolean fulfilled;
-	private boolean rejected;
-	private Object awaitLock = new Object();
+	private volatile T result = null;
+	private volatile Throwable error = null;
+	private volatile boolean fulfilled;
+	private volatile boolean rejected;
+	private final Object awaitLock = new Object();
 	
-	public synchronized boolean isPending() { return !fulfilled && !rejected; }
-	public synchronized boolean isSettled() { return fulfilled || rejected; }
-	public synchronized boolean isFulfilled() { return fulfilled; }
-	public synchronized boolean isRejected() { return rejected; }
+	public boolean isPending() { return !fulfilled && !rejected; }
+	public boolean isSettled() { return fulfilled || rejected; }
+	public boolean isFulfilled() { return fulfilled; }
+	public boolean isRejected() { return rejected; }
 	
-	public synchronized T getResult() { return result; }
-	public synchronized Throwable getError() { return error; }
+	public T getResult() { return result; }
+	public Throwable getError() { return error; }
 	
 	// every mutating method in this class is synchronized so that it doesn't break and stuff
 	synchronized boolean resolve(T result) {
@@ -260,7 +256,7 @@ public class Promise<T> implements Future<T>{
 	// blocking wait
 	public T await(long timeout, TimeUnit unit) throws InterruptedException, ExecutionException{
 		if (isPending() && timeout > 0) {
-			final var timedOut = new RefBoolean(false);
+			final var timedOut = new AtomicBoolean(false);
 			
 			final var timerThread = new Thread(() -> {
 				try {
