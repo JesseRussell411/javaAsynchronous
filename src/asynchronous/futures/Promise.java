@@ -340,7 +340,7 @@ public class Promise<T> implements Future<T>{
 	
 	//factories:
 	/**
-	 * Runs the given function in parallel
+	 * Runs the given function in a new Thread.
 	 * @return Resolves when function completes (with the output of the function) and rejects if the function throws an error.
 	 */
 	public static <T> Promise<T> asyncGet(Supplier<T> func){
@@ -359,7 +359,7 @@ public class Promise<T> implements Future<T>{
 	}
 	
 	/**
-	 * Runs the given function in parallel
+	 * Runs the given function in a new Thread.
 	 * @return Resolves when function completes and rejects if the function throws an error.
 	 */
 	public static Promise<Void> asyncRun(Runnable func){
