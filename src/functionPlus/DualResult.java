@@ -33,7 +33,32 @@ public class DualResult<A, B> {
 	}
 	
 	/**
-	 * Match the result to a value.
+	 * Match the result to a function with a return value.
+	 * @param ifA Ran if the DualResult is of type A.
+	 * @param ifB Ran if the DualResult is of type B.
+	 * @return The outcome of whichever function (ifA/ifB) was ran.
+	 */
+	public <R> R matchApply(Function<A, R> ifA, Function<B, R> ifB) {
+		if(isB)
+			return ifB.apply(valueB);
+		else
+			return ifA.apply(valueA);
+	}
+	
+	/**
+	 * Match the result to a function.
+	 * @param ifA Ran if the DualResult is of type A.
+	 * @param ifB Ran if the DualResult is of type B.
+	 */
+	public void matchAccept(Consumer<A> ifA, Consumer<B> ifB) {
+		if (isB)
+			ifB.accept(valueB);
+		else
+			ifA.accept(valueA);
+	}
+	
+	/**
+	 * Match the result to a function with a return value.
 	 * @param ifA Ran if the DualResult is of type A.
 	 * @param ifB Ran if the DualResult is of type B.
 	 * @return The outcome of whichever function (ifA/ifB) was ran.
@@ -44,6 +69,19 @@ public class DualResult<A, B> {
 		else
 			return ifA.apply(valueA);
 	}
+	
+	/**
+	 * Match the result to a function.
+	 * @param ifA Ran if the DualResult is of type A.
+	 * @param ifB Ran if the DualResult is of type B.
+	 */
+	public void match(Consumer<A> ifA, Consumer<B> ifB) {
+		if (isB)
+			ifB.accept(valueB);
+		else
+			ifA.accept(valueA);
+	}
+	
 	/**
 	 * If the DualResult is of type A: Supplies the given consumer with the resulting value.
 	 * @return The DualResult to allow chaining.
@@ -64,11 +102,31 @@ public class DualResult<A, B> {
 		
 		return this;
 	}
+	
+	/**
+	 * @return The value of type A if the DualResult is of type A or given alternative otherwise.
+	 */
+	public A aOr(A alternative) {
+		if(isB)
+			return alternative;
+		else
+			return valueA;
+	}
+	/**
+	 * @return The value of type B if the DualResult is of type B or the given alternative otherwise.
+	 */
+	public B bOr(B alternative) {
+		if(isB)
+			return valueB;
+		else
+			return alternative;
+	}
+	
 	/**
 	 * @return The value of type A if the DualResult is of type A or the result of getAlternative otherwise.
 	 * @param getAlternative Given the value of type B in order to produce an alternative to the value of type A.
 	 */
-	public A aOr(Function<B, A> getAlternative) {
+	public A aOrGet(Function<B, A> getAlternative) {
 		if(isB)
 			return getAlternative.apply(valueB);
 		else
@@ -78,7 +136,7 @@ public class DualResult<A, B> {
 	 * @return The value of type B if the DualResult is of type B or the result of getAlternative otherwise.
 	 * @param getAlternative Given the value of type A in order to produce an alternative to the value of type B.
 	 */
-	public B bOr(Function<A, B> getAlternative) {
+	public B bOrGet(Function<A, B> getAlternative) {
 		if(isB)
 			return valueB;
 		else

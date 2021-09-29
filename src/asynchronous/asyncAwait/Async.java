@@ -162,11 +162,14 @@ public class Async {
 		 * Awaits the given promise, returning it's result when it's resolved.
 		 * @param <T> The type of the promise.
 		 * @param promise
-		 * @return result of promise
+		 * @return result of promise or null if the promise is null.
 		 * @throws UncheckedWrapper Wrapper around all Exceptions checked and un-checked. Will contain whatever exception was thrown.
 		 * This is the only exception thrown by await.apply.
 		 */
 		public <T> T apply(Promise<T> promise) throws UncheckedWrapper {
+			if (promise == null)
+				return null;
+			
 			try {
 				// yield to Async.execute. wait for the promise to complete. Async.execute will take care of that.
 				yield.accept(promise);
@@ -281,29 +284,6 @@ public class Async {
 			private volatile T result = null;
 			private volatile Deferred<T> deferred;
 			
-			private synchronized Promise<Result<Promise<?>>> execute() {
-				return coThread.run().thenAccept(result -> {
-					result.ifDefined(promise -> {
-						// yielded with promise:
-						if (promise == null)
-							throw new NullPointerException("Promise given to await.accept was null.");
-						
-							// tell the promise to add this called instance back onto the execution queue when it's settled
-						promise.onSettledRun(() -> asyncAwaitCompleteNotify(this));
-						//
-					}).ifNotDefined(() -> {
-						//completed:
-						coThread.close();
-						deferred.resolve(this.result);
-						//
-					});
-				}, error ->{
-					// threw an error:
-					deferred.reject(error);
-					//
-				});
-			}
-			
 			CalledInstance() {
 				coThread = new CoThread<>(yield -> {
 					result = func.apply(new Await(yield));
@@ -322,6 +302,26 @@ public class Async {
 				
 				// This promise will resolve when the instance completes successfully, and reject when an error occurs
 				return deferred.promise;
+			}
+			
+			private synchronized Promise<Result<Promise<?>>> execute() {
+				return coThread.run().thenAccept(result -> {
+					result.matchAccept(promise -> {
+						// yielded with promise:
+						 // tell the promise to add this called instance back onto the execution queue when it's settled
+						promise.onSettledRun(() -> asyncAwaitCompleteNotify(this));
+						//
+					}, () -> {
+						//completed:
+						coThread.close();
+						deferred.resolve(this.result);
+						//
+					});
+				}, error ->{
+					// threw an error:
+					deferred.reject(error);
+					//
+				});
 			}
 		}
 	}
