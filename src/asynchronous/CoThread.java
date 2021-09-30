@@ -31,7 +31,7 @@ public class CoThread<R> implements AutoCloseable{
 	public boolean isRunning() { return running; }
 	/** Whether the run method has been called at least once. */
 	public boolean isStarted() { return started; }
-	/** Whether the CoThread has ran to the end of its body and died. */
+	/** Whether the CoThread has thrown and error, or finished execution. In either case, it will no longer yield any more values, or even run at all. */
 	public boolean isDead() { return dead; }
 	
 	public CoThread(Consumer<Yield> func, String name) {
