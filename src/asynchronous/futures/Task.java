@@ -4,6 +4,7 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.*;
 
 import asynchronous.TaskCancelException;
@@ -61,4 +62,36 @@ public class Task<T> implements Future<T>{
 	public T get(long timeout, TimeUnit unit) throws InterruptedException, ExecutionException, TimeoutException {
 		return promise.get(timeout, unit);
 	}
+	
+	public static Task<Void> asyncRun(Runnable func){
+		final var task = new Task<Void>();
+		final var thread = new Thread(() -> {
+			try {
+				func.run();
+				task.promise.resolve(null);
+			}
+			catch(Throwable e) {
+				task.promise.reject(e);
+			}
+		});
+		task.onCancel = (exception, interruptIfRunning) -> thread.interrupt();
+		thread.start();
+		return task;
+	}
+	
+	public static <T> Task<T> asyncGet(Supplier<T> func){
+		final var task = new Task<T>();
+		final var thread = new Thread(() -> {
+			try {
+				task.promise.resolve(func.get());
+			}
+			catch(Throwable e) {
+				task.promise.reject(e);
+			}
+		});
+		task.onCancel = (exception, interruptIfRunning) -> thread.interrupt();
+		thread.start();
+		return task;
+	}
+
 }

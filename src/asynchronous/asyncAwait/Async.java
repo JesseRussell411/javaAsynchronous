@@ -309,7 +309,8 @@ public class Async {
 					result.matchAccept(promise -> {
 						// yielded with promise:
 						 // tell the promise to add this called instance back onto the execution queue when it's settled
-						promise.onSettledRun(() -> asyncAwaitCompleteNotify(this));
+						promise.onSettledRun(() ->
+							asyncAwaitCompleteNotify(this));
 						//
 					}, () -> {
 						//completed:
