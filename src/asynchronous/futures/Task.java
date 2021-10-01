@@ -18,14 +18,25 @@ public class Task<T> implements Future<T>{
 		promise = new Promise<T>(initializer);
 		this.onCancel = onCancel;
 	}
-	public Task(Consumer<Function<T, Boolean>> initializer, BiConsumer<TaskCancelException, Boolean> onCancel) {
+	public Task(Consumer<Promise<T>.Settle> initializer, BiConsumer<TaskCancelException, Boolean> onCancel) {
 		promise = new Promise<T>(initializer);
 		this.onCancel = onCancel;
+	}
+	
+	Task(Promise<T> promise, BiConsumer<TaskCancelException, Boolean> onCancel){
+		this.promise = promise;
+		this.onCancel = onCancel;
+	}
+	
+	Task(Promise<T> promise){
+		this.promise = promise;
+		onCancel = (e, b) -> {};
 	}
 	
 	Task(BiConsumer<TaskCancelException, Boolean> onCancel){
 		promise = new Promise<T>();
 		this.onCancel = onCancel;
+		
 	}
 	
 	Task(){
@@ -61,6 +72,11 @@ public class Task<T> implements Future<T>{
 	@Override
 	public T get(long timeout, TimeUnit unit) throws InterruptedException, ExecutionException, TimeoutException {
 		return promise.get(timeout, unit);
+	}
+	
+	public static <T> Task<T> threadInit(Consumer<Promise<T>.Settle> initializer, BiConsumer<TaskCancelException, Boolean> onCancel){
+		final var thread = new Thread<T>();
+		
 	}
 	
 	public static Task<Void> asyncRun(Runnable func){

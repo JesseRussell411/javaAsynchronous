@@ -35,6 +35,35 @@ public class Promise<T> implements Future<T>{
 	
 	// every mutating method in this class is synchronized so that it doesn't break and stuff
 	
+	
+	private synchronized void handleResolve(T result) {
+		// apply state and result
+		fulfilled = true;
+		this.result = result;
+		
+		// call the callbacks with the new result
+		resolveCallbacks(result);
+			
+		synchronized(awaitLock) {
+			// notify any waiting threads (in the await method)
+			awaitLock.notifyAll();
+		}
+	}
+	
+	private synchronized void handleReject(Throwable error) {
+		// apply state and result
+		rejected = true;
+		this.error = error;
+		
+		// reject the callbacks with the new error
+		rejectCallbacks(error);
+		
+		synchronized(awaitLock) {
+			// notify any waiting threads (in the await method)
+			awaitLock.notifyAll();
+		}
+	}
+	
 	/** 
 	 * Resolve the promise with the given result, only takes effect if the
 	 * Promise hasn't been settled yet. If it has, the call will be ignored.
@@ -45,17 +74,7 @@ public class Promise<T> implements Future<T>{
 			return false;
 		}
 		else {
-			// apply state and result
-			fulfilled = true;
-			this.result = result;
-			
-			// call the callbacks with the new result
-			resolveCallbacks(result);
-				
-			synchronized(awaitLock) {
-				// notify any waiting threads (in the await method)
-				awaitLock.notifyAll();
-			}
+			handleResolve(result);
 			return true;
 		}
 	}
@@ -69,30 +88,64 @@ public class Promise<T> implements Future<T>{
 		if (isSettled()) {
 			return false;
 		}
-		else{
-			// apply state and result
-			rejected = true;
-			this.error = error;
-			
-			// reject the callbacks with the new error
-			rejectCallbacks(error);
-			
-			synchronized(awaitLock) {
-				// notify any waiting threads (in the await method)
-				awaitLock.notifyAll();
+		else {
+			handleReject(error);
+			return true;
+		}
+	}
+	
+	synchronized boolean resolveWith(Supplier<T> resultGetter) {
+		if (isSettled()) {
+			return false;
+		}
+		else {
+			try {
+				handleResolve(resultGetter.get());
+			}
+			catch(Throwable e) {
+				handleReject(e);
 			}
 			return true;
 		}
 	}
 	
+	synchronized boolean rejectWith(Supplier<Throwable> errorGetter) {
+		if (isSettled()) {
+			return false;
+		} else {
+			try {
+				handleReject(errorGetter.get());
+			}
+			catch(Throwable e) {
+				handleReject(e);
+			}
+			return true;
+		}
+	}
+	
+	public class Settle {
+		public boolean resolve(T result) {
+			return Promise.this.resolve(result);
+		}
+		public boolean reject(Throwable error) {
+			return Promise.this.reject(error);
+		}
+		public boolean resolveWith(Supplier<T> resultGetter) {
+			return Promise.this.resolveWith(resultGetter);
+		}
+		public boolean rejectWith(Supplier<Throwable> error) {
+			return Promise.this.rejectWith(error);
+		}
+	}
+	
 	Promise(){}
+	
+	public Promise(Consumer<Settle> initializer) {
+		initializer.accept(new Settle());
+	}
 	
 	public Promise(BiConsumer<Function<T, Boolean>, Function<Throwable, Boolean>> initializer) {
 		initializer.accept(t -> resolve(t), e -> reject(e));
-	}
-	
-	public Promise(Consumer<Function<T, Boolean>> initializer) {
-		initializer.accept(t -> resolve(t));
 	}
 	
 	// callback stuff
@@ -412,9 +465,9 @@ public class Promise<T> implements Future<T>{
 	/**
 	 * Constructs a new Promise by running the initializer in parallel.
 	 */
-	public static <T> Promise<T> threadInit(Consumer<Function<T, Boolean>> initializer){
+	public static <T> Promise<T> threadInit(Consumer<Promise<T>.Settle> initializer){
 		return new Promise<T>((resolve) -> {
-			final var thread = new Thread(() -> initializer.accept(resolve));
+			final var thread = new Thread(() -> initializer.accept(new Promise<T>().new Settle()));
 			thread.start();
 		});
 	}
