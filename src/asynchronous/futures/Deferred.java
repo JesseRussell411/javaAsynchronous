@@ -17,8 +17,9 @@ public class Deferred<T> implements Future<T> {
 		task = new Task<T>(onCancel);
 		promise = task.promise;
 	}
+	
 	public Deferred() {
-		task = new Task<T>();
+		task = new Task<T>((tce, ciir) -> {});
 		promise = task.promise;
 	}
 	
@@ -30,25 +31,11 @@ public class Deferred<T> implements Future<T> {
 	}
 	
 	public boolean resolveFrom(Supplier<T> resultGetter) {
-		synchronized(promise) {
-			if (promise.isSettled()) {
-				return false;
-			}
-			else {
-				return promise.resolve(resultGetter.get());
-			}
-		}
+		return promise.resolveFrom(resultGetter);
 	}
 	
 	public boolean rejectFrom(Supplier<Throwable> errorGetter) {
-		synchronized(promise) {
-			if (promise.isSettled()) {
-				return false;
-			}
-			else {
-				return promise.reject(errorGetter.get());
-			}
-		}
+		return promise.rejectFrom(errorGetter);
 	}
 	
 	@Override

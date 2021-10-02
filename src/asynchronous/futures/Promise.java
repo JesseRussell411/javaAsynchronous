@@ -1,11 +1,10 @@
 package asynchronous.futures;
-import java.time.Duration;
+import java.time.*;
 import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.*;
 import java.util.function.*;
 
-import reference.RefBoolean;
 
 public class Promise<T> implements Future<T>{
 	private volatile T result = null;
@@ -94,7 +93,7 @@ public class Promise<T> implements Future<T>{
 		}
 	}
 	
-	synchronized boolean resolveWith(Supplier<T> resultGetter) {
+	synchronized boolean resolveFrom(Supplier<T> resultGetter) {
 		if (isSettled()) {
 			return false;
 		}
@@ -109,7 +108,7 @@ public class Promise<T> implements Future<T>{
 		}
 	}
 	
-	synchronized boolean rejectWith(Supplier<Throwable> errorGetter) {
+	synchronized boolean rejectFrom(Supplier<Throwable> errorGetter) {
 		if (isSettled()) {
 			return false;
 		} else {
@@ -130,11 +129,11 @@ public class Promise<T> implements Future<T>{
 		public boolean reject(Throwable error) {
 			return Promise.this.reject(error);
 		}
-		public boolean resolveWith(Supplier<T> resultGetter) {
-			return Promise.this.resolveWith(resultGetter);
+		public boolean resolveFrom(Supplier<T> resultGetter) {
+			return Promise.this.resolveFrom(resultGetter);
 		}
-		public boolean rejectWith(Supplier<Throwable> error) {
-			return Promise.this.rejectWith(error);
+		public boolean rejectFrom(Supplier<Throwable> error) {
+			return Promise.this.rejectFrom(error);
 		}
 	}
 	

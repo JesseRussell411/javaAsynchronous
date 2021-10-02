@@ -9,10 +9,11 @@ import java.util.function.*;
 
 import asynchronous.TaskCancelException;
 
+
 /** contains a promise with a public method to cancel */
 public class Task<T> implements Future<T>{
 	public final Promise<T> promise;
-	public BiConsumer<TaskCancelException, Boolean> onCancel;
+	BiConsumer<TaskCancelException, Boolean> onCancel;
 	
 	public Task(BiConsumer<Function<T, Boolean>, Function<Throwable, Boolean>> initializer, BiConsumer<TaskCancelException, Boolean> onCancel) {
 		promise = new Promise<T>(initializer);
@@ -23,25 +24,17 @@ public class Task<T> implements Future<T>{
 		this.onCancel = onCancel;
 	}
 	
-	Task(Promise<T> promise, BiConsumer<TaskCancelException, Boolean> onCancel){
+	private Task(Promise<T> promise){
 		this.promise = promise;
-		this.onCancel = onCancel;
 	}
 	
-	Task(Promise<T> promise){
-		this.promise = promise;
-		onCancel = (e, b) -> {};
-	}
-	
-	Task(BiConsumer<TaskCancelException, Boolean> onCancel){
+	Task(BiConsumer<TaskCancelException, Boolean> onCancel) {
 		promise = new Promise<T>();
 		this.onCancel = onCancel;
-		
 	}
 	
-	Task(){
+	private Task() {
 		promise = new Promise<T>();
-		onCancel = (e, b) -> {};
 	}
 	
 	@Override
@@ -72,11 +65,6 @@ public class Task<T> implements Future<T>{
 	@Override
 	public T get(long timeout, TimeUnit unit) throws InterruptedException, ExecutionException, TimeoutException {
 		return promise.get(timeout, unit);
-	}
-	
-	public static <T> Task<T> threadInit(Consumer<Promise<T>.Settle> initializer, BiConsumer<TaskCancelException, Boolean> onCancel){
-		final var thread = new Thread<T>();
-		
 	}
 	
 	public static Task<Void> asyncRun(Runnable func){
