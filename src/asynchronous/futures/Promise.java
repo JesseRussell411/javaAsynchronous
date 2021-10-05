@@ -129,22 +129,21 @@ public class Promise<T> implements Future<T>{
 		public boolean reject(Throwable error) {
 			return Promise.this.reject(error);
 		}
+		public boolean resolve() { return resolve(null); }
 		public boolean resolveFrom(Supplier<T> resultGetter) {
 			return Promise.this.resolveFrom(resultGetter);
 		}
 		public boolean rejectFrom(Supplier<Throwable> error) {
 			return Promise.this.rejectFrom(error);
 		}
+		
+		Settle(){}
 	}
 	
 	Promise(){}
 	
 	public Promise(Consumer<Settle> initializer) {
 		initializer.accept(new Settle());
-	}
-	
-	public Promise(BiConsumer<Function<T, Boolean>, Function<Throwable, Boolean>> initializer) {
-		initializer.accept(t -> resolve(t), e -> reject(e));
 	}
 	
 	// callback stuff
@@ -451,24 +450,32 @@ public class Promise<T> implements Future<T>{
 		return promise;
 	}
 	
-	/**
-	 * Constructs a new Promise by running the initializer in parallel.
-	 */
-	public static <T> Promise<T> threadInit(BiConsumer<Function<T, Boolean>, Function<Throwable, Boolean>> initializer){
-		return new Promise<T>((resolve, reject) -> {
-			final var thread = new Thread(() -> initializer.accept(resolve, reject));
-			thread.start();
-		});
-	}
 	
+	public static class threadInit_result<T>{
+		public final Promise<T> promise;
+		public final Thread thread;
+		private threadInit_result(Promise<T> promise, Thread thread){
+			this.promise = promise;
+			this.thread = thread;
+		}
+	}
 	/**
 	 * Constructs a new Promise by running the initializer in parallel.
 	 */
-	public static <T> Promise<T> threadInit(Consumer<Promise<T>.Settle> initializer){
-		return new Promise<T>((resolve) -> {
-			final var thread = new Thread(() -> initializer.accept(new Promise<T>().new Settle()));
-			thread.start();
+	public static <T> threadInit_result<T> threadInit(Consumer<Promise<T>.Settle> initializer){
+		final var promise = new Promise<T>();
+		final var settle = promise.new Settle();
+		final var thread = new Thread(() -> {
+			try {
+				initializer.accept(settle);
+			}
+			catch(Throwable e) {
+				settle.reject(e);
+			}
 		});
+		thread.start();
+		
+		return new threadInit_result<T>(promise, thread);
 	}
 	
 	/**
@@ -506,14 +513,14 @@ public class Promise<T> implements Future<T>{
 			return result;
 		}
 		else {
-			return Promise.threadInit((resolve, reject) -> {
+			return Promise.<T>threadInit((settle) -> {
 				try {
-					resolve.apply(future.get());
+					settle.resolve(future.get());
 				}
 				catch(Throwable e) {
-					reject.apply(e);
+					settle.reject(e);
 				}
-			});
+			}).promise;
 		}
 	}
 	

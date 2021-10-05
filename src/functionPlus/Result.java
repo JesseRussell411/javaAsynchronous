@@ -42,11 +42,13 @@ public class Result<T> {
 	 * @param ifDefined Ran if the result is defined.
 	 * @param ifNotDefined Ran if the result is not defined.
 	 */
-	public void matchAccept(Consumer<T> ifDefined, Runnable ifNotDefined) {
+	public Result<T> matchAccept(Consumer<T> ifDefined, Runnable ifNotDefined) {
 		if (undefined)
 			ifNotDefined.run();
 		else
 			ifDefined.accept(value);
+
+		return this;
 	}
 	/**
 	 * Match the result to a function with a return.
@@ -66,11 +68,13 @@ public class Result<T> {
 	 * @param ifDefined Ran if the result is defined.
 	 * @param ifNotDefined Ran if the result is not defined.
 	 */
-	public void match(Consumer<T> ifDefined, Runnable ifNotDefined) {
+	public Result<T> match(Consumer<T> ifDefined, Runnable ifNotDefined) {
 		if (undefined)
 			ifNotDefined.run();
 		else
 			ifDefined.accept(value);
+		
+		return this;
 	}
 	
 	/**

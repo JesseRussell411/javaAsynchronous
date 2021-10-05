@@ -15,10 +15,6 @@ public class Task<T> implements Future<T>{
 	public final Promise<T> promise;
 	BiConsumer<TaskCancelException, Boolean> onCancel;
 	
-	public Task(BiConsumer<Function<T, Boolean>, Function<Throwable, Boolean>> initializer, BiConsumer<TaskCancelException, Boolean> onCancel) {
-		promise = new Promise<T>(initializer);
-		this.onCancel = onCancel;
-	}
 	public Task(Consumer<Promise<T>.Settle> initializer, BiConsumer<TaskCancelException, Boolean> onCancel) {
 		promise = new Promise<T>(initializer);
 		this.onCancel = onCancel;
@@ -44,7 +40,8 @@ public class Task<T> implements Future<T>{
 				return false;
 			else {
 				final var cancelError = new TaskCancelException(this);
-				onCancel.accept(cancelError, mayInterruptIfRunning);
+				if (onCancel != null)
+					onCancel.accept(cancelError, mayInterruptIfRunning);
 				promise.reject(cancelError);
 				return true;
 			}
@@ -67,20 +64,25 @@ public class Task<T> implements Future<T>{
 		return promise.get(timeout, unit);
 	}
 	
-	public static Task<Void> asyncRun(Runnable func){
-		final var task = new Task<Void>();
-		final var thread = new Thread(() -> {
-			try {
-				func.run();
-				task.promise.resolve(null);
-			}
-			catch(Throwable e) {
-				task.promise.reject(e);
-			}
-		});
-		task.onCancel = (exception, interruptIfRunning) -> thread.interrupt();
-		thread.start();
-		return task;
+	public static class threadInit_result<T>{
+		public final Task<T> task;
+		public final Thread thread;
+		public threadInit_result(Task<T> task, Thread thread) {
+			this.task = task;
+			this.thread = thread;
+		}
+	}
+	
+	public static <T> threadInit_result<T> threadInit(Consumer<Promise<T>.Settle> initializer){
+		final var promiseAndThread = Promise.<T>threadInit(initializer);
+		final var task = new Task<T>(promiseAndThread.promise);
+		final var thread = promiseAndThread.thread;
+		task.onCancel = (taskCancelException, interruptWhileRunning) -> {
+			if (interruptWhileRunning)
+				thread.interrupt();
+		};
+		
+		return new threadInit_result<T>(task, thread);
 	}
 	
 	public static <T> Task<T> asyncGet(Supplier<T> func){
@@ -97,5 +99,11 @@ public class Task<T> implements Future<T>{
 		thread.start();
 		return task;
 	}
-
+	
+	public static Task<Void> asyncRun(Runnable func){
+		return asyncGet(() -> {
+			func.run();
+			return null;
+		});
+	}
 }

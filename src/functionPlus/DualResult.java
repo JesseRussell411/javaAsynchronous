@@ -50,11 +50,13 @@ public class DualResult<A, B> {
 	 * @param ifA Ran if the DualResult is of type A.
 	 * @param ifB Ran if the DualResult is of type B.
 	 */
-	public void matchAccept(Consumer<A> ifA, Consumer<B> ifB) {
+	public DualResult<A, B> matchAccept(Consumer<A> ifA, Consumer<B> ifB) {
 		if (isB)
 			ifB.accept(valueB);
 		else
 			ifA.accept(valueA);
+		
+		return this;
 	}
 	
 	/**
@@ -75,11 +77,13 @@ public class DualResult<A, B> {
 	 * @param ifA Ran if the DualResult is of type A.
 	 * @param ifB Ran if the DualResult is of type B.
 	 */
-	public void match(Consumer<A> ifA, Consumer<B> ifB) {
+	public DualResult<A, B> match(Consumer<A> ifA, Consumer<B> ifB) {
 		if (isB)
 			ifB.accept(valueB);
 		else
 			ifA.accept(valueA);
+		
+		return this;
 	}
 	
 	/**

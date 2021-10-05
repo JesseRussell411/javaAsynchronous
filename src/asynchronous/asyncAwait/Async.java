@@ -95,7 +95,11 @@ public class Async {
 			while(!stop.get() && threadCount.get() < maxThreadCount.get() && (instance = executionQueue.poll()) != null) {
 				threadCount.incrementAndGet();
 				
-				instance.execute().onSettledRun(() -> {
+				final var promise = instance.execute();
+				promise.onError(e -> {
+					System.out.println(e);
+				});
+				promise.onSettledRun(() -> {
 					threadCount.decrementAndGet();
 					synchronized(executeWaitLock) {
 						executeWaitLock.notifyAll();
@@ -593,15 +597,15 @@ public class Async {
 			return async.getName();
 		}
 	}
-	public class FuncHexaConsumer<T1, T2, T3, T4, T5, T6> implements HexaFunction<T1, T2, T3, T4, T5, T6, Promise<Void>>{
+	public class AsyncHexaConsumer<T1, T2, T3, T4, T5, T6> implements HexaFunction<T1, T2, T3, T4, T5, T6, Promise<Void>>{
 		private final AsyncHexaFunction<T1, T2, T3, T4, T5, T6, Void> async;
 		
-		public FuncHexaConsumer(HeptaConsumer<Await, T1, T2, T3, T4, T5, T6> func, String name) {
+		public AsyncHexaConsumer(HeptaConsumer<Await, T1, T2, T3, T4, T5, T6> func, String name) {
 			async = new AsyncHexaFunction<T1, T2, T3, T4, T5, T6, Void>(
 					(await, t1, t2, t3, t4, t5, t6) -> { func.accept(await, t1, t2, t3, t4, t5, t6); return null; }, name);
 		}
 		
-		public FuncHexaConsumer(HeptaConsumer<Await, T1, T2, T3, T4, T5, T6> func) {
+		public AsyncHexaConsumer(HeptaConsumer<Await, T1, T2, T3, T4, T5, T6> func) {
 			this(func, null);
 		}
 		
@@ -753,8 +757,8 @@ public class Async {
 	public <T1, T2, T3, T4, T5, T6, R> AsyncHexaFunction<T1, T2, T3, T4, T5, T6, R> def(HeptaFunction<Await, T1, T2, T3, T4, T5, T6, R> func){
 		return new AsyncHexaFunction<>(func);
 	}
-	public <T1, T2, T3, T4, T5, T6> FuncHexaConsumer<T1, T2, T3, T4, T5, T6> def(HeptaConsumer<Await, T1, T2, T3, T4, T5, T6> func){
-		return new FuncHexaConsumer<>(func);
+	public <T1, T2, T3, T4, T5, T6> AsyncHexaConsumer<T1, T2, T3, T4, T5, T6> def(HeptaConsumer<Await, T1, T2, T3, T4, T5, T6> func){
+		return new AsyncHexaConsumer<>(func);
 	}
 	public <T1, T2, T3, T4, T5, T6, T7, R> AsyncHeptaFunction<T1, T2, T3, T4, T5, T6, T7, R> def(OctoFunction<Await, T1, T2, T3, T4, T5, T6, T7, R> func){
 		return new AsyncHeptaFunction<>(func);
@@ -809,8 +813,8 @@ public class Async {
 	public <T1, T2, T3, T4, T5, T6, R> AsyncHexaFunction<T1, T2, T3, T4, T5, T6, R> def(String name, HeptaFunction<Await, T1, T2, T3, T4, T5, T6, R> func){
 		return new AsyncHexaFunction<>(func, name);
 	}
-	public <T1, T2, T3, T4, T5, T6> FuncHexaConsumer<T1, T2, T3, T4, T5, T6> def(String name, HeptaConsumer<Await, T1, T2, T3, T4, T5, T6> func){
-		return new FuncHexaConsumer<>(func, name);
+	public <T1, T2, T3, T4, T5, T6> AsyncHexaConsumer<T1, T2, T3, T4, T5, T6> def(String name, HeptaConsumer<Await, T1, T2, T3, T4, T5, T6> func){
+		return new AsyncHexaConsumer<>(func, name);
 	}
 	public <T1, T2, T3, T4, T5, T6, T7, R> AsyncHeptaFunction<T1, T2, T3, T4, T5, T6, T7, R> def(String name, OctoFunction<Await, T1, T2, T3, T4, T5, T6, T7, R> func){
 		return new AsyncHeptaFunction<>(func, name);

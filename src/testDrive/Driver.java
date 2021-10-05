@@ -43,7 +43,7 @@ public class Driver {
 	}
 	
 	public static void main(String[] args) throws InterruptedException {
-		AsyncTriConcatenater(() -> Promise.resolved("----------hello "), () -> Promise.resolved("world"), () -> Promise.resolved("!")).thenAccept(r -> System.out.println(r));
+//		AsyncTriConcatenater(() -> Promise.resolved("----------hello "), () -> Promise.resolved("world"), () -> Promise.resolved("!")).thenAccept(r -> System.out.println(r));
 		
 		// *** Out-dated documentation, sorry about that
 		// Instructions:
