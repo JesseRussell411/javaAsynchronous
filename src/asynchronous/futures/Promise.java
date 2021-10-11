@@ -68,13 +68,17 @@ public class Promise<T> implements Future<T>{
 	 * Promise hasn't been settled yet. If it has, the call will be ignored.
 	 * @return Whether the call takes effect. If false: the call was ignored.
 	 * */
-	synchronized boolean resolve(T result) {
-		if (isSettled()) {
-			return false;
-		}
-		else {
-			handleResolve(result);
-			return true;
+	boolean resolve(T result) {
+		if (isSettled()) return false;
+		
+		synchronized(this) {
+			if (isSettled()) {
+				return false;
+			}
+			else {
+				handleResolve(result);
+				return true;
+			}
 		}
 	}
 	
@@ -84,41 +88,52 @@ public class Promise<T> implements Future<T>{
 	 * @return Whether the call takes effect. If false: the call was ignored.
 	 * */
 	synchronized boolean reject(Throwable error) {
-		if (isSettled()) {
-			return false;
-		}
-		else {
-			handleReject(error);
-			return true;
-		}
-	}
-	
-	synchronized boolean resolveFrom(Supplier<T> resultGetter) {
-		if (isSettled()) {
-			return false;
-		}
-		else {
-			try {
-				handleResolve(resultGetter.get());
+		if (isSettled()) return false;
+		synchronized(this) {
+			if (isSettled()) {
+				return false;
 			}
-			catch(Throwable e) {
-				handleReject(e);
+			else {
+				handleReject(error);
+				return true;
 			}
-			return true;
 		}
 	}
 	
-	synchronized boolean rejectFrom(Supplier<Throwable> errorGetter) {
-		if (isSettled()) {
-			return false;
-		} else {
-			try {
-				handleReject(errorGetter.get());
+	boolean resolveFrom(Supplier<T> resultGetter) {
+		if (isSettled()) return false;
+		
+		synchronized(this) {
+			if (isSettled()) {
+				return false;
 			}
-			catch(Throwable e) {
-				handleReject(e);
+			else {
+				try {
+					handleResolve(resultGetter.get());
+				}
+				catch(Throwable e) {
+					handleReject(e);
+				}
+				return true;
 			}
-			return true;
+		}
+	}
+	
+	boolean rejectFrom(Supplier<Throwable> errorGetter) {
+		if (isSettled()) return false;
+		
+		synchronized(this) {
+			if (isSettled()) {
+				return false;
+			} else {
+				try {
+					handleReject(errorGetter.get());
+				}
+				catch(Throwable e) {
+					handleReject(e);
+				}
+				return true;
+			}
 		}
 	}
 	
