@@ -67,11 +67,11 @@ public class CoThread<R> implements AutoCloseable{
 	 */
 	public synchronized Promise<Result<R>> run() {
 		if (running || dead)
-			return deferred.promise;
+			return deferred.promise();
 		
 		synchronized(yield) {
 			if (running || dead) {
-				return deferred.promise;
+				return deferred.promise();
 			}
 			else {
 				deferred = new Deferred<Result<R>>();
@@ -84,7 +84,7 @@ public class CoThread<R> implements AutoCloseable{
 				
 				yield.notifyAll();
 				
-				return deferred.promise;
+				return deferred.promise();
 			}
 		}
 	}

@@ -11,17 +11,20 @@ public class Promise<T> implements Future<T>{
 	private volatile Throwable error = null;
 	private volatile boolean fulfilled;
 	private volatile boolean rejected;
+	private volatile boolean canceled;
 	private final Object awaitLock = new Object();
 	private final List<Callback<T, ?>> callbacks = new ArrayList<Callback<T, ?>>();
 	
 	/** Whether the Promise is waiting to be settled */
-	public boolean isPending() { return !fulfilled && !rejected; }
+	public boolean isPending() { return !fulfilled && !rejected && !canceled; }
 	/** Whether the Promise has been fulfilled or rejected */
-	public boolean isSettled() { return fulfilled || rejected; }
+	public boolean isSettled() { return fulfilled || rejected || canceled; }
 	/** Whether the Promise has been fulfilled */
 	public boolean isFulfilled() { return fulfilled; }
 	/** Whether the Promise has been rejected */
 	public boolean isRejected() { return rejected; }
+	/** Whether the Promise has been canceled */
+	public boolean isCanceled() { return canceled; }
 	
 	/** @return The result of the Promise. Returns null if the Promise has yet
 	 * to be fulfilled (or if the result was actually null). */
@@ -63,6 +66,18 @@ public class Promise<T> implements Future<T>{
 		}
 	}
 	
+	private synchronized void handleCancel() {
+		//apply state
+		canceled = true;
+		
+		// cancel the callbacks
+		cancelCallbacks();
+		
+		synchronized(awaitLock) {
+			awaitLock.notifyAll();
+		}
+	}
+	
 	/** 
 	 * Resolve the promise with the given result, only takes effect if the
 	 * Promise hasn't been settled yet. If it has, the call will be ignored.
@@ -87,7 +102,7 @@ public class Promise<T> implements Future<T>{
 	 * Promise hasn't been settled yet. If it has, the call will be ignored.
 	 * @return Whether the call takes effect. If false: the call was ignored.
 	 * */
-	synchronized boolean reject(Throwable error) {
+	boolean reject(Throwable error) {
 		if (isSettled()) return false;
 		synchronized(this) {
 			if (isSettled()) {
@@ -95,6 +110,19 @@ public class Promise<T> implements Future<T>{
 			}
 			else {
 				handleReject(error);
+				return true;
+			}
+		}
+	}
+	
+	boolean cancel() {
+		if (isSettled()) return false;
+		synchronized(this) {
+			if (isSettled()) {
+				return false;
+			}
+			else {
+				handleCancel();
 				return true;
 			}
 		}
@@ -151,6 +179,9 @@ public class Promise<T> implements Future<T>{
 		public boolean rejectFrom(Supplier<Throwable> error) {
 			return Promise.this.rejectFrom(error);
 		}
+		public boolean cancel() {
+			return Promise.this.cancel();
+		}
 		
 		Settle(){}
 	}
@@ -174,6 +205,12 @@ public class Promise<T> implements Future<T>{
 			callback.applyReject(error);
 		callbacks.clear();
 	}
+	/** Cancel all callbacks */
+	private synchronized void cancelCallbacks() {
+		for(final var callback : callbacks)
+			callback.applyCancel();
+		callbacks.clear();
+	}
 	
 	/** Adds the callback to the promise, all callback methods (then, onError, onSettled) end up calling this one. */
 	private synchronized <R> Promise<R> addCallback(Callback<T, R> callback){
@@ -190,9 +227,53 @@ public class Promise<T> implements Future<T>{
 		return callback.getNext();
 	}
 	
-	// then and error
+	// then with error and cancel
+	public synchronized <R> Promise<R> thenApply(Function<T, R> then, Function<Throwable, R> catcher, Supplier<R> onCancel){
+		return addCallback(new SyncCallback<R>(then, catcher, onCancel));
+	}
+	
+	public synchronized Promise<T> thenAccept(Consumer<T> then, Consumer<Throwable> catcher, Runnable onCancel){
+		return thenApply(t -> {
+			then.accept(t);
+			return t;
+		}, e -> {
+			catcher.accept(e);
+			return null;
+		}, () -> {
+			onCancel.run();
+			return null;
+		});
+	}
+	
+	public synchronized <R> Promise<R> thenGet(Supplier<R> then, Supplier<R> catcher, Supplier<R> onCancel){
+		return thenApply(t -> then.get(), e -> catcher.get(), onCancel);
+	}
+	
+	public synchronized Promise<T> thenRun(Runnable then, Runnable catcher, Runnable onCancel){
+		return thenApply(t -> {
+			then.run();
+			return result;
+		}, e -> {
+			catcher.run();
+			return null;
+		}, () -> {
+			onCancel.run();
+			return null;
+		});
+	}
+	
+	// async then with error and cancel
+	public synchronized <R> Promise<R> asyncThenApply(Function<T, Promise<R>> then, Function<Throwable, Promise<R>> catcher, Supplier<Promise<R>> onCancel){
+		return addCallback(new AsyncCallback<R>(then, catcher, onCancel));
+	}
+	
+	public synchronized <R> Promise<R> asyncThenGet(Supplier<Promise<R>> then, Supplier<Promise<R>> catcher, Supplier<Promise<R>> onCancel){
+		return asyncThenApply(t -> then.get(), e -> catcher.get(), onCancel);
+	}
+	
+	// then with error
 	public synchronized <R> Promise<R> thenApply(Function<T, R> then, Function<Throwable, R> catcher){
-		return addCallback(new SyncCallback<T, R>(then, catcher));
+		return addCallback(new SyncCallback<R>(then, catcher, null));
 	}
 	
 	public synchronized Promise<T> thenAccept(Consumer<T> then, Consumer<Throwable> catcher){
@@ -219,9 +300,9 @@ public class Promise<T> implements Future<T>{
 		});
 	}
 	
-	
+	// async then with error
 	public synchronized <R> Promise<R> asyncThenApply(Function<T, Promise<R>> then, Function<Throwable, Promise<R>> catcher){
-		return addCallback(new AsyncCallback<T, R>(then, catcher));
+		return addCallback(new AsyncCallback<R>(then, catcher, null));
 	}
 	
 	public synchronized <R> Promise<R> asyncThenGet(Supplier<Promise<R>> then, Supplier<Promise<R>> catcher){
@@ -251,8 +332,9 @@ public class Promise<T> implements Future<T>{
 		});
 	}
 	
+	// async just then
 	public synchronized <R> Promise<R> asyncThenApply(Function<T, Promise<R>> then){
-		return addCallback(new AsyncCallback<T, R>(then, null));
+		return addCallback(new AsyncCallback<R>(then, null, null));
 	}
 	
 	public synchronized <R> Promise<R> asyncThenGet(Supplier<Promise<R>> then){
@@ -261,11 +343,11 @@ public class Promise<T> implements Future<T>{
 	
 	// on error
 	public synchronized <R> Promise<R> onErrorApply(Function<Throwable, R> catcher){
-		return thenApply(null, catcher);
+		return addCallback(new SyncCallback<R>(null, catcher, null));
 	}
 	
-	public synchronized Promise<T> onErrorAccept(Consumer<Throwable> catcher) {
-		return thenApply(t -> t, e -> {
+	public synchronized Promise<Void> onErrorAccept(Consumer<Throwable> catcher) {
+		return onErrorApply(e -> {
 			catcher.accept(e);
 			return null;
 		});
@@ -275,42 +357,66 @@ public class Promise<T> implements Future<T>{
 		return onErrorApply(e -> catcher.get());
 	}
 	
-	public synchronized Promise<T> onErrorRun(Runnable catcher){
-		return thenApply(t -> t, e -> {
+	public synchronized Promise<Void> onErrorRun(Runnable catcher){
+		return onErrorApply(e -> {
 			catcher.run();
 			return null;
 		});
 	}
 	
+	// async on error
 	public synchronized <R> Promise<R> asyncOnErrorApply(Function<Throwable, Promise<R>> catcher){
-		return asyncThenApply(null, catcher);
+		return addCallback(new AsyncCallback<R>(null, catcher, null));
 	}
 	
 	public synchronized <R> Promise<R> asyncOnErrorGet(Supplier<Promise<R>> catcher){
 		return asyncOnErrorApply(e -> catcher.get());
 	}
 	
-	// on settled
-	public synchronized <R> Promise<R> onSettledGet(Supplier<R> settler){
-		return thenApply(t -> settler.get(), t -> settler.get());
+	// on cancel
+	public synchronized <R> Promise<R> onCancelGet(Supplier<R> onCancel){
+		return addCallback(new SyncCallback<R>(null, null, onCancel));
 	}
 	
-	public synchronized Promise<T> onSettledRun(Runnable settler){
-		return thenApply(t -> {
-			settler.run();
-			return t;
-		}, e -> {
+	public synchronized Promise<Void> onCancelRun(Runnable onCancel){
+		return onCancelGet(() -> {
+			onCancel.run();
+			return null;
+		});
+	}
+	
+	// async on cancel
+	public synchronized <R> Promise<R> asyncOnCancelGet(Supplier<Promise<R>> onCancel){
+		return addCallback(new AsyncCallback<R>(null, null, onCancel));
+	}
+	
+	// on settled
+	public synchronized <R> Promise<R> onSettledGet(Supplier<R> settler){
+		return addCallback(new SyncCallback<R>(t -> settler.get(), e -> settler.get(), settler));
+	}
+	
+	public synchronized Promise<Void> onSettledRun(Runnable settler){
+		return onSettledGet(() -> {
 			settler.run();
 			return null;
 		});
 	}
 	
+	// async on settled
 	public synchronized <R> Promise<R> asyncOnSettledGet(Supplier<Promise<R>> settler){
-		return asyncThenApply(t -> settler.get(), e -> settler.get());
+		return addCallback(new AsyncCallback<R>(t -> settler.get(), e -> settler.get(), settler));
 	}
 	
 	// auto-FunctionType versions:
-	// then and error
+	// then with error and cancel
+	public synchronized <R> Promise<R> then(Function<T, R> then, Function<Throwable, R> catcher, Supplier<R> onCancel){return thenApply(then, catcher, onCancel);}
+	public synchronized Promise<T>     then(Consumer<T> then, Consumer<Throwable> catcher, Runnable onCancel){return thenAccept(then, catcher, onCancel);}
+	public synchronized <R> Promise<R> then(Supplier<R> then, Supplier<R> catcher, Supplier<R> onCancel){return thenGet(then, catcher, onCancel);}
+	public synchronized Promise<T>     then(Runnable then, Runnable catcher, Runnable onCancel){return thenRun(then, catcher, onCancel);}
+	public synchronized <R> Promise<R> asyncThen(Function<T, Promise<R>> then, Function<Throwable, Promise<R>> catcher, Supplier<Promise<R>> onCancel){return asyncThenApply(then, catcher, onCancel);}
+	public synchronized <R> Promise<R> asyncThen(Supplier<Promise<R>> then, Supplier<Promise<R>> catcher, Supplier<Promise<R>> onCancel){return asyncThenGet(then, catcher, onCancel);}
+	
+	// then with error
 	public synchronized <R> Promise<R> then(Function<T, R> then, Function<Throwable, R> catcher){return thenApply(then, catcher);}
 	public synchronized Promise<T>     then(Consumer<T> then, Consumer<Throwable> catcher){return thenAccept(then, catcher);}
 	public synchronized <R> Promise<R> then(Supplier<R> then, Supplier<R> catcher){return thenGet(then, catcher);}
@@ -328,15 +434,20 @@ public class Promise<T> implements Future<T>{
 	
 	// on error
 	public synchronized <R> Promise<R> onError(Function<Throwable, R> catcher){return onErrorApply(catcher);}
-	public synchronized Promise<T>     onError(Consumer<Throwable> catcher) {return onErrorAccept(catcher);}
+	public synchronized Promise<Void>  onError(Consumer<Throwable> catcher) {return onErrorAccept(catcher);}
 	public synchronized <R> Promise<R> onError(Supplier<R> catcher){return onErrorGet(catcher);}
-	public synchronized Promise<T>     onError(Runnable catcher){return onErrorRun(catcher);}
+	public synchronized Promise<Void>  onError(Runnable catcher){return onErrorRun(catcher);}
 	public synchronized <R> Promise<R> asyncOnError(Function<Throwable, Promise<R>> catcher){return asyncOnErrorApply(catcher);}
 	public synchronized <R> Promise<R> asyncOnError(Supplier<Promise<R>> catcher){return asyncOnErrorGet(catcher);}
 	
+	// on cancel
+	public synchronized <R> Promise<R> onCancel(Supplier<R> onCancel) { return onCancelGet(onCancel); }
+	public synchronized Promise<Void>  onCancel(Runnable onCancel){ return onCancelRun(onCancel); }
+	public synchronized <R> Promise<R> asyncOnCancel(Supplier<Promise<R>> onCancel) { return asyncOnCancelGet(onCancel); }
+
 	// on settled
 	public synchronized <R> Promise<R> onSettled(Supplier<R> settler){return onSettledGet(settler);}
-	public synchronized Promise<T>     onSettled(Runnable settler){return onSettledRun(settler);}
+	public synchronized Promise<Void>  onSettled(Runnable settler){return onSettledRun(settler);}
 	public synchronized <R> Promise<R> asyncOnSettled(Supplier<Promise<R>> settler){return asyncOnSettledGet(settler);}
 	
 	
@@ -518,9 +629,9 @@ public class Promise<T> implements Future<T>{
 		if (future instanceof Promise<T> p)
 			return p;
 		else if (future instanceof Task<T> t)
-			return t.promise;
+			return t.promise();
 		else if (future instanceof Deferred<T> d)
-			return d.promise;
+			return d.promise();
 		else if (future instanceof CompletableFuture<T> cf) {
 			final var result = new Promise<T>();
 			cf.thenAccept(t -> result.resolve(t));
@@ -589,36 +700,43 @@ public class Promise<T> implements Future<T>{
 		
 		return result;
 	}
-}
-
-interface Callback<T, R>{
-	boolean applyResolve(T result);
-	boolean applyReject(Throwable error);
-	Promise<R> getNext();
-}
-
-class SyncCallback<T, R> implements Callback<T, R> {
-	private final Function<T, R> then;
-	private final Function<Throwable, R> catcher;
-	private final Promise<R> next = new Promise<R>();
 	
-	SyncCallback(Function<T, R> then, Function<Throwable, R> catcher) {
-		if (then != null)
-			this.then = then;
-		else
-			this.then = t -> null;
-			
-		if (catcher != null)
-			this.catcher = catcher;
-		else
-			this.catcher = e -> {next.reject(e); return null;};
+	// inner class "Callback" used for callback methods like then and onError
+	
+	interface Callback<T, R>{
+		boolean applyResolve(T result);
+		boolean applyReject(Throwable error);
+		boolean applyCancel();
+		Promise<R> getNext();
 	}
-	
-	public Promise<R> getNext() { return next; }
-	
-	@Override
-	public boolean applyResolve(T result) {
-		synchronized(next) {
+
+	class SyncCallback<R> implements Callback<T, R> {
+		private final Function<T, R> then;
+		private final Function<Throwable, R> catcher;
+		private final Supplier<R> onCancel;
+		private final Promise<R> next = new Promise<R>();
+		
+		SyncCallback(Function<T, R> then, Function<Throwable, R> catcher, Supplier<R> onCancel) {
+			if (then != null)
+				this.then = then;
+			else
+				this.then = t -> null;
+				
+			if (catcher != null)
+				this.catcher = catcher;
+			else
+				this.catcher = e -> {next.reject(e); return null;};
+			
+			if (onCancel != null)
+				this.onCancel = onCancel;
+			else
+				this.onCancel = () -> {next.reject(new PromiseCancellationException(Promise.this)); return null; };
+		}
+		
+		public Promise<R> getNext() { return next; }
+		
+		@Override
+		public boolean applyResolve(T result) {
 			try {
 				return next.resolve(then.apply(result));
 			}
@@ -626,11 +744,9 @@ class SyncCallback<T, R> implements Callback<T, R> {
 				return next.reject(e);
 			}
 		}
-	}
-	
-	@Override
-	public boolean applyReject(Throwable error){
-		synchronized(next) {
+		
+		@Override
+		public boolean applyReject(Throwable error){
 			try {
 				return next.resolve(catcher.apply(error));
 			}
@@ -638,54 +754,85 @@ class SyncCallback<T, R> implements Callback<T, R> {
 				return next.reject(e);
 			}
 		}
+		
+		@Override
+		public boolean applyCancel() {
+			try {
+				return next.resolve(onCancel.get());
+			}
+			catch(Throwable e){
+				return next.reject(e);
+			}
+		}
+	}
+
+	class AsyncCallback<R> implements Callback<T, R>{
+		private final Function<T, Promise<R>> then;
+		private final Function<Throwable, Promise<R>> catcher;
+		private final Supplier<Promise<R>> onCancel;
+		private final Promise<R> next = new Promise<R>();
+		private volatile boolean applied = false;
+		
+		AsyncCallback(Function<T, Promise<R>> then, Function<Throwable, Promise<R>> catcher, Supplier<Promise<R>> onCancel) {
+			if (then != null)
+				this.then = then;
+			else
+				this.then = t -> Promise.<R>resolved(null);
+				
+			if (catcher != null)
+				this.catcher = catcher;
+			else
+				this.catcher = e -> {next.reject(e); return Promise.<R>resolved(null);};
+			
+			if (onCancel != null)
+				this.onCancel = onCancel;
+			else
+				this.onCancel = () -> { next.reject(new PromiseCancellationException(Promise.this)); return Promise.<R>resolved(null);};
+		}
+		
+		public Promise<R> getNext() { return next; }
+		
+		@Override
+		public boolean applyResolve(T result) {
+			synchronized(next) {
+				if (applied || next.isSettled()) {
+					return false;
+				}
+				else {
+					then.apply(result).thenAccept(r -> next.resolve(r), e -> next.reject(e));
+					applied = true;
+					return true;
+				}
+			}
+		}
+		
+		@Override
+		public boolean applyReject(Throwable error){
+			synchronized(next) {
+				if (applied || next.isSettled()) {
+					return false;
+				}
+				else {
+					catcher.apply(error).thenAccept(r -> next.resolve(r), e -> next.reject(e));
+					applied = true;
+					return true;
+				}
+			}
+		}
+		
+		@Override
+		public boolean applyCancel() {
+			synchronized(next) {
+				if (applied || next.isSettled()) {
+					return false;
+				}
+				else {
+					onCancel.get().thenAccept(r -> next.resolve(r), e -> next.reject(e));
+					applied = true;
+					return true;
+				}
+			}
+		}
 	}
 }
 
-class AsyncCallback<T, R> implements Callback<T, R>{
-	private final Function<T, Promise<R>> then;
-	private final Function<Throwable, Promise<R>> catcher;
-	private final Promise<R> next = new Promise<R>();
-	private volatile boolean applied = false;
-	
-	AsyncCallback(Function<T, Promise<R>> then, Function<Throwable, Promise<R>> catcher) {
-		if (then != null)
-			this.then = then;
-		else
-			this.then = t -> Promise.<R>resolved(null);
-			
-		if (catcher != null)
-			this.catcher = catcher;
-		else
-			this.catcher = e -> {next.reject(e); return Promise.<R>resolved(null);};
-	}
-	
-	public Promise<R> getNext() { return next; }
-	
-	@Override
-	public boolean applyResolve(T result) {
-		synchronized(next) {
-			if (applied || next.isSettled()) {
-				return false;
-			}
-			else {
-				then.apply(result).thenAccept(r -> next.resolve(r), e -> next.reject(e));
-				applied = true;
-				return true;
-			}
-		}
-	}
-	
-	@Override
-	public boolean applyReject(Throwable error){
-		synchronized(next) {
-			if (applied || next.isSettled()) {
-				return false;
-			}
-			else {
-				catcher.apply(error).thenAccept(r -> next.resolve(r), e -> next.reject(e));
-				applied = true;
-				return true;
-			}
-		}
-	}
-}

@@ -299,13 +299,13 @@ public class Async {
 				deferred = new Deferred<T>();
 				
 				// add callback to promise that decrements running instance count when the call completes.
-				deferred.promise.onSettledRun(() -> asyncCompleteNotify());
+				deferred.promise().onSettledRun(() -> asyncCompleteNotify());
 				
 				// Notify Async class that this instance has started.
 				asyncStartNotify(this);
 				
 				// This promise will resolve when the instance completes successfully, and reject when an error occurs
-				return deferred.promise;
+				return deferred.promise();
 			}
 			
 			private synchronized Promise<Result<Promise<?>>> execute() {

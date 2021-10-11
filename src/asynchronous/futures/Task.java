@@ -11,57 +11,60 @@ import asynchronous.TaskCancelException;
 
 
 /** contains a promise with a public method to cancel */
-public class Task<T> implements Future<T>{
-	public final Promise<T> promise;
-	BiConsumer<TaskCancelException, Boolean> onCancel;
+public class Task<T> implements Future<T> {
+	private final Promise<T> _promise;
+	Consumer<Boolean> canceler;
 	
-	public Task(Consumer<Promise<T>.Settle> initializer, BiConsumer<TaskCancelException, Boolean> onCancel) {
-		promise = new Promise<T>(initializer);
-		this.onCancel = onCancel;
+	public Promise<T> promise() { return _promise; }
+	
+	public Task(Consumer<Promise<T>.Settle> initializer, Consumer<Boolean> canceler) {
+		_promise = new Promise<T>(initializer);
+		this.canceler = canceler;
 	}
 	
 	private Task(Promise<T> promise){
-		this.promise = promise;
+		this._promise = promise;
+		this.canceler = null;
 	}
 	
-	Task(BiConsumer<TaskCancelException, Boolean> onCancel) {
-		promise = new Promise<T>();
-		this.onCancel = onCancel;
+	Task(Consumer<Boolean> canceler) {
+		_promise = new Promise<T>();
+		this.canceler = canceler;
 	}
 	
-	private Task() {
-		promise = new Promise<T>();
+	public Task() {
+		_promise = new Promise<T>();
+		canceler = null;
 	}
 	
 	@Override
 	public boolean cancel(boolean mayInterruptIfRunning) {
-		synchronized(promise) {
-			if (promise.isSettled())
+		synchronized(_promise) {
+			if (_promise.isSettled())
 				return false;
 			else {
-				final var cancelError = new TaskCancelException(this);
-				if (onCancel != null)
-					onCancel.accept(cancelError, mayInterruptIfRunning);
-				promise.reject(cancelError);
+				if (canceler != null)
+					canceler.accept(mayInterruptIfRunning);
+				_promise.cancel();
 				return true;
 			}
 		}
 	}
 	@Override
 	public boolean isCancelled() {
-		return promise.getError() instanceof TaskCancelException tce && tce.getTask() == this;
+		return _promise.isCanceled();
 	}
 	@Override
 	public boolean isDone() {
-		return promise.isDone();
+		return _promise.isDone();
 	}
 	@Override
 	public T get() throws InterruptedException, ExecutionException {
-		return promise.get();
+		return _promise.get();
 	}
 	@Override
 	public T get(long timeout, TimeUnit unit) throws InterruptedException, ExecutionException, TimeoutException {
-		return promise.get(timeout, unit);
+		return _promise.get(timeout, unit);
 	}
 	
 	public static class threadInit_result<T>{
@@ -77,7 +80,7 @@ public class Task<T> implements Future<T>{
 		final var promiseAndThread = Promise.<T>threadInit(initializer);
 		final var task = new Task<T>(promiseAndThread.promise);
 		final var thread = promiseAndThread.thread;
-		task.onCancel = (taskCancelException, interruptWhileRunning) -> {
+		task.canceler = (interruptWhileRunning) -> {
 			if (interruptWhileRunning)
 				thread.interrupt();
 		};
@@ -89,13 +92,13 @@ public class Task<T> implements Future<T>{
 		final var task = new Task<T>();
 		final var thread = new Thread(() -> {
 			try {
-				task.promise.resolve(func.get());
+				task._promise.resolve(func.get());
 			}
 			catch(Throwable e) {
-				task.promise.reject(e);
+				task._promise.reject(e);
 			}
 		});
-		task.onCancel = (exception, interruptIfRunning) -> thread.interrupt();
+		task.canceler = (interruptIfRunning) -> thread.interrupt();
 		thread.start();
 		return task;
 	}

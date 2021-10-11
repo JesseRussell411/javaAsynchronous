@@ -10,52 +10,59 @@ import asynchronous.TaskCancelException;
 
 /** contains a task and is resolve or rejected with public methods instead of an initializer. */
 public class Deferred<T> implements Future<T> {
-	public final Promise<T> promise;
-	public final Task<T> task;
+	private final Promise<T> _promise;
+	private final Task<T> _task;
 	
-	public Deferred(BiConsumer<TaskCancelException, Boolean> onCancel) {
-		task = new Task<T>(onCancel);
-		promise = task.promise;
+	public Promise<T> promise() { return _promise; }
+	public Task<T> task() { return _task; }
+	
+	public Deferred(Consumer<Boolean> canceler) {
+		_task = new Task<T>(canceler);
+		_promise = _task.promise();
 	}
 	
 	public Deferred() {
-		task = new Task<T>((tce, ciir) -> {});
-		promise = task.promise;
+		_task = new Task<T>(null);
+		_promise = _task.promise();
 	}
 	
 	public boolean resolve(T result) {
-		return promise.resolve(result);
+		return _promise.resolve(result);
 	}
 	public boolean reject(Throwable error) {
-		return promise.reject(error);
+		return _promise.reject(error);
 	}
 	
 	public boolean resolveFrom(Supplier<T> resultGetter) {
-		return promise.resolveFrom(resultGetter);
+		return _promise.resolveFrom(resultGetter);
 	}
 	
 	public boolean rejectFrom(Supplier<Throwable> errorGetter) {
-		return promise.rejectFrom(errorGetter);
+		return _promise.rejectFrom(errorGetter);
+	}
+	
+	public boolean cancel() {
+		return _promise.cancel();
 	}
 	
 	@Override
 	public boolean cancel(boolean mayInterruptIfRunning) {
-		return task.cancel(mayInterruptIfRunning);
+		return _task.cancel(mayInterruptIfRunning);
 	}
 	@Override
 	public boolean isCancelled() {
-		return task.isCancelled();
+		return _task.isCancelled();
 	}
 	@Override
 	public boolean isDone() {
-		return task.isDone();
+		return _task.isDone();
 	}
 	@Override
 	public T get() throws InterruptedException, ExecutionException {
-		return promise.get();
+		return _promise.get();
 	}
 	@Override
 	public T get(long timeout, TimeUnit unit) throws InterruptedException, ExecutionException, TimeoutException {
-		return promise.get(timeout, unit);
+		return _promise.get(timeout, unit);
 	}
 }
