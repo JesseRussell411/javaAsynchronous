@@ -311,7 +311,7 @@ public class Promise<T> implements Future<T>{
 	
 	// just then
 	public synchronized <R> Promise<R> thenApply(Function<T, R> then){
-		return thenApply(then, null);
+		return addCallback(new SyncCallback<R>(then, null, null));
 	}
 	
 	public synchronized Promise<T> thenAccept(Consumer<T> then){
@@ -672,9 +672,7 @@ public class Promise<T> implements Future<T>{
 					result.resolve(null);
 			});
 			
-			promise.onErrorAccept((e) -> {
-				result.reject(e);
-			});
+			promise.onErrorAccept((e) -> result.reject(e));
 		}
 		
 		if (fulfilledCount.get() == count.get())
@@ -702,15 +700,14 @@ public class Promise<T> implements Future<T>{
 	}
 	
 	// inner class "Callback" used for callback methods like then and onError
-	
-	interface Callback<T, R>{
+	private interface Callback<T, R>{
 		boolean applyResolve(T result);
 		boolean applyReject(Throwable error);
 		boolean applyCancel();
 		Promise<R> getNext();
 	}
 
-	class SyncCallback<R> implements Callback<T, R> {
+	private class SyncCallback<R> implements Callback<T, R> {
 		private final Function<T, R> then;
 		private final Function<Throwable, R> catcher;
 		private final Supplier<R> onCancel;
@@ -730,7 +727,7 @@ public class Promise<T> implements Future<T>{
 			if (onCancel != null)
 				this.onCancel = onCancel;
 			else
-				this.onCancel = () -> {next.reject(new PromiseCancellationException(Promise.this)); return null; };
+				this.onCancel = () -> {next.cancel(); return null; };
 		}
 		
 		public Promise<R> getNext() { return next; }
@@ -766,7 +763,7 @@ public class Promise<T> implements Future<T>{
 		}
 	}
 
-	class AsyncCallback<R> implements Callback<T, R>{
+	private class AsyncCallback<R> implements Callback<T, R>{
 		private final Function<T, Promise<R>> then;
 		private final Function<Throwable, Promise<R>> catcher;
 		private final Supplier<Promise<R>> onCancel;
@@ -777,17 +774,17 @@ public class Promise<T> implements Future<T>{
 			if (then != null)
 				this.then = then;
 			else
-				this.then = t -> Promise.<R>resolved(null);
+				this.then = t -> {return Promise.<R>resolved(null);};
 				
 			if (catcher != null)
 				this.catcher = catcher;
 			else
-				this.catcher = e -> {next.reject(e); return Promise.<R>resolved(null);};
+				this.catcher = e -> {next.reject(e); return null;};
 			
 			if (onCancel != null)
 				this.onCancel = onCancel;
 			else
-				this.onCancel = () -> { next.reject(new PromiseCancellationException(Promise.this)); return Promise.<R>resolved(null);};
+				this.onCancel = () -> {next.cancel(); return null;};
 		}
 		
 		public Promise<R> getNext() { return next; }
@@ -799,7 +796,7 @@ public class Promise<T> implements Future<T>{
 					return false;
 				}
 				else {
-					then.apply(result).thenAccept(r -> next.resolve(r), e -> next.reject(e));
+					then.apply(result).thenAccept(r -> next.resolve(r), e -> next.reject(e), () -> next.cancel());
 					applied = true;
 					return true;
 				}
@@ -813,7 +810,7 @@ public class Promise<T> implements Future<T>{
 					return false;
 				}
 				else {
-					catcher.apply(error).thenAccept(r -> next.resolve(r), e -> next.reject(e));
+					catcher.apply(error).thenAccept(r -> next.resolve(r), e -> next.reject(e), () -> next.cancel());
 					applied = true;
 					return true;
 				}
@@ -827,7 +824,7 @@ public class Promise<T> implements Future<T>{
 					return false;
 				}
 				else {
-					onCancel.get().thenAccept(r -> next.resolve(r), e -> next.reject(e));
+					onCancel.get().thenAccept(r -> next.resolve(r), e -> next.reject(e), () -> next.cancel());
 					applied = true;
 					return true;
 				}

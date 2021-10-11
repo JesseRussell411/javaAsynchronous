@@ -12,6 +12,7 @@ import asynchronous.Timing;
 import asynchronous.UncheckedInterruptedException;
 import asynchronous.futures.Deferred;
 import asynchronous.futures.Promise;
+import asynchronous.futures.PromiseCancellationException;
 import exceptionsPlus.UncheckedWrapper;
 import functionPlus.*;
 import reference.Ref;
@@ -179,11 +180,18 @@ public class Async {
 				yield.accept(promise);
 				
 				// at this point yield has stopped blocking which should mean that the promise is complete.
-				if (promise.isRejected()) {
+				if (promise.isFulfilled()) {
+					return promise.getResult();
+				}
+				else if (promise.isRejected()) {
 					throw promise.getError();
 				}
-				else if (promise.isFulfilled()) {
-					return promise.getResult();
+				else if (promise.isCanceled()) {
+					throw new PromiseCancellationException(promise);
+				}
+				else if (promise.isSettled()) {
+					// ?
+					return null;
 				}
 				else {
 					// if this block runs, something is wrong. Most likely with Async.execute().
@@ -325,6 +333,10 @@ public class Async {
 				}, error ->{
 					// threw an error:
 					deferred.reject(error);
+					//
+				}, () -> {
+					// was canceled for some reason:
+					deferred.cancel();
 					//
 				});
 			}

@@ -98,7 +98,10 @@ public class Task<T> implements Future<T> {
 				task._promise.reject(e);
 			}
 		});
-		task.canceler = (interruptIfRunning) -> thread.interrupt();
+		task.canceler = (interruptIfRunning) -> {
+			if (interruptIfRunning)
+				thread.interrupt();
+		};
 		thread.start();
 		return task;
 	}
