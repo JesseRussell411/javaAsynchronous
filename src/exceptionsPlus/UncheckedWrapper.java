@@ -6,24 +6,21 @@ import java.util.Set;
 // Wrapper around any exception to ensure that is unchecked.
 public class UncheckedWrapper extends RuntimeException {
 	private static final long serialVersionUID = 1L;
-	
-	private final Throwable original;
 	/**
 	 * The original exception that was thrown.
 	 */
 	public Throwable getOriginal() {
-		return original;
+		return getCause();
 	}
 	public UncheckedWrapper(Throwable original) {
-		
-		this.original = original;
+		super(original);
 	}
 	@Override
 	public String getMessage() {
-		if (original == null)
+		if (getOriginal() == null)
 			return null;
 		else
-			return original.toString();
+			return getOriginal().toString();
 	}
 	
 	/**
@@ -60,6 +57,6 @@ public class UncheckedWrapper extends RuntimeException {
 	
 	@Override
 	public String toString() {
-		return "Unchecked(Throwable)Wrapper: { " + (original == null ? "null" : original.toString()) + " }";
+		return "Unchecked(Throwable)Wrapper: { " + (getOriginal() == null ? "null" : getOriginal().toString()) + " }";
 	}
 }

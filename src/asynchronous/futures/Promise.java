@@ -727,7 +727,7 @@ public class Promise<T> implements Future<T>{
 			if (onCancel != null)
 				this.onCancel = onCancel;
 			else
-				this.onCancel = () -> {next.cancel(); return null; };
+				this.onCancel = () -> {next.cancel(); return null;};
 		}
 		
 		public Promise<R> getNext() { return next; }
@@ -791,6 +791,7 @@ public class Promise<T> implements Future<T>{
 		
 		@Override
 		public boolean applyResolve(T result) {
+			if (applied) return false;
 			synchronized(next) {
 				if (applied || next.isSettled()) {
 					return false;
@@ -805,6 +806,7 @@ public class Promise<T> implements Future<T>{
 		
 		@Override
 		public boolean applyReject(Throwable error){
+			if (applied) return false;
 			synchronized(next) {
 				if (applied || next.isSettled()) {
 					return false;
@@ -819,6 +821,7 @@ public class Promise<T> implements Future<T>{
 		
 		@Override
 		public boolean applyCancel() {
+			if (applied) return false;
 			synchronized(next) {
 				if (applied || next.isSettled()) {
 					return false;

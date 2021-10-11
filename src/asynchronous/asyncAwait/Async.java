@@ -171,7 +171,7 @@ public class Async {
 		 * @throws UncheckedWrapper Wrapper around all Exceptions checked and un-checked. Will contain whatever exception was thrown.
 		 * This is the only exception thrown by await.apply.
 		 */
-		public <T> T apply(Promise<T> promise) throws UncheckedWrapper {
+		public <T> T apply(Promise<T> promise, Supplier<T> onCancel) throws UncheckedWrapper {
 			if (promise == null)
 				return null;
 			
@@ -187,7 +187,10 @@ public class Async {
 					throw promise.getError();
 				}
 				else if (promise.isCanceled()) {
-					throw new PromiseCancellationException(promise);
+					if (onCancel == null)
+						throw new PromiseCancellationException(promise);
+					else
+						return onCancel.get();
 				}
 				else if (promise.isSettled()) {
 					// ?
@@ -204,6 +207,10 @@ public class Async {
 			}
 		}
 		
+		public <T> T apply(Promise<T> promise) throws UncheckedWrapper {
+			return apply(promise, null);
+		}
+		
 		/**
 		 * Awaits the given future, returning it's result when it's resolved.
 		 * @param <T> The type of the promise.
@@ -212,13 +219,17 @@ public class Async {
 		 * @throws UncheckedWrapper Wrapper around all Exceptions checked and un-checked. Will contain whatever exception was thrown.
 		 * This is the only exception thrown by await.apply.
 		 */
-		public <T> T apply(Future<T> future) throws UncheckedWrapper{
+		public <T> T apply(Future<T> future, Supplier<T> onCancel) throws UncheckedWrapper {
 			try {
-				return apply(Promise.fromFuture(future));
+				return apply(Promise.fromFuture(future), onCancel);
 			}
-			catch(Exception e) {
+			catch(Throwable e) {
 				throw UncheckedWrapper.uncheckify(e);
 			}
+		}
+		
+		public <T> T apply(Future<T> future) throws UncheckedWrapper {
+			return apply(future, null);
 		}
 		
 		/**
