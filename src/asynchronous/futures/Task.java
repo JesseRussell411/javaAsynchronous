@@ -92,29 +92,4 @@ public class Task<T> implements Future<T> {
 		
 		return new TaskAndThread<T>(task, thread);
 	}
-	
-	public static <T> Task<T> asyncGet(Supplier<T> func){
-		final var task = new Task<T>();
-		final var thread = new Thread(() -> {
-			try {
-				task.settle.resolve(func.get());
-			}
-			catch(Throwable e) {
-				task.settle.reject(e);
-			}
-		});
-		task.canceler = (interruptIfRunning) -> {
-			if (interruptIfRunning)
-				thread.interrupt();
-		};
-		thread.start();
-		return task;
-	}
-	
-	public static Task<Void> asyncRun(Runnable func){
-		return asyncGet(() -> {
-			func.run();
-			return null;
-		});
-	}
 }

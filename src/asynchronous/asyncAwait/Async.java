@@ -1,21 +1,17 @@
 package asynchronous.asyncAwait;
 
 import java.util.Queue;
-import java.util.concurrent.ConcurrentLinkedQueue;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.Future;
+import java.util.concurrent.*;
 import java.util.concurrent.atomic.*;
 import java.util.function.*;
 
 import asynchronous.CoThread;
-import asynchronous.Timing;
-import asynchronous.UncheckedInterruptedException;
+import asynchronous.*;
 import asynchronous.futures.Deferred;
 import asynchronous.futures.Promise;
 import asynchronous.futures.FutureCancellationException;
 import exceptionsPlus.UncheckedWrapper;
 import functionPlus.*;
-import reference.Ref;
 import message.*;
 
 /**
@@ -211,14 +207,14 @@ public class Async {
 		 * @return whatever was returned by the function;
 		 */
 		public <T> T func(Supplier<T> func) {
-			return apply(Promise.asyncGet(func));
+			return apply(Promise.asyncGet(func).promise);
 		}
 		
 		/**
 		 * Asynchronously waits for the given function to run in a separate thread.
 		 * */
 		public void func(Runnable func) {
-			apply(Promise.asyncRun(func));
+			apply(Promise.asyncRun(func).promise);
 		}
 		
 		// utils:

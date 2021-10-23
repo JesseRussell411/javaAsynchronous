@@ -22,10 +22,10 @@ public class Promise<T> implements Future<T>{
 	
 	Promise(){}
 	
-	/** Whether the Promise is waiting to be settled */
-	public boolean isPending() { return !fulfilled && !rejected && !canceled; }
 	/** Whether the Promise has been fulfilled or rejected */
 	public boolean isSettled() { return fulfilled || rejected || canceled; }
+	/** Whether the Promise is waiting to be settled */
+	public boolean isPending() { return !isSettled(); }
 	/** Whether the Promise has been fulfilled */
 	public boolean isFulfilled() { return fulfilled; }
 	/** Whether the Promise has been rejected */
@@ -85,11 +85,6 @@ public class Promise<T> implements Future<T>{
 		}
 	}
 	
-	/** 
-	 * Resolve the promise with the given result. Only takes effect if the
-	 * Promise hasn't been settled yet. If it has, the call will be ignored.
-	 * @return Whether the call takes effect. If false: the call was ignored.
-	 * */
 	private boolean resolve(T result) {
 		if (isSettled()) return false;
 		
@@ -104,11 +99,6 @@ public class Promise<T> implements Future<T>{
 		}
 	}
 	
-	/** 
-	 * Reject the promise with the given error. Only takes effect if the
-	 * Promise hasn't been settled yet. If it has, the call will be ignored.
-	 * @return Whether the call takes effect. If false: the call was ignored.
-	 */
 	private boolean reject(Throwable error) {
 		if (isSettled()) return false;
 		
@@ -122,12 +112,6 @@ public class Promise<T> implements Future<T>{
 			}
 		}
 	}
-	
-	/** 
-	 * Cancel the promise. Only takes effect if the
-	 * Promise hasn't been settled yet. If it has, the call will be ignored.
-	 * @return Whether the call takes effect. If false: the call was ignored.
-	 */
 	private boolean cancel() {
 		if (isSettled()) return false;
 		
@@ -141,14 +125,6 @@ public class Promise<T> implements Future<T>{
 			}
 		}
 	}
-	
-	/**
-	 * If the promise hasn't been settled yet: runs the given function and
-	 * resolves the promise with the result. The function is not run if the
-	 * promise has already been settled.
-	 * @param resultGetter Supplies the result to resolve the promise with.
-	 * @return Whether the function was run and it's result used.
-	 */
 	private boolean resolveFrom(Supplier<T> resultGetter) {
 		if (isSettled()) return false;
 		
@@ -167,14 +143,6 @@ public class Promise<T> implements Future<T>{
 			}
 		}
 	}
-	
-	/**
-	 * If the promise hasn't been settled yet: runs the given function and
-	 * rejects the promise with the result. The function is not run if the
-	 * promise has already been settled.
-	 * @param errorGetter Supplies the error to reject the promise with.
-	 * @return Whether the function was run and it's result used.
-	 */
 	private boolean rejectFrom(Supplier<Throwable> errorGetter) {
 		if (isSettled()) return false;
 		
@@ -598,12 +566,20 @@ public class Promise<T> implements Future<T>{
 		return await(timeout, unit);
 	}
 	
-	//factories:
+	// constructor functions:
+	public static class PromiseAndThread<T>{
+		public final Promise<T> promise;
+		public final Thread thread;
+		private PromiseAndThread(Promise<T> promise, Thread thread){
+			this.promise = promise;
+			this.thread = thread;
+		}
+	}
 	/**
 	 * Runs the given function in a new Thread.
 	 * @return Resolves when function completes (with the output of the function) and rejects if the function throws an error.
 	 */
-	public static <T> Promise<T> asyncGet(Supplier<T> func){
+	public static <T> PromiseAndThread<T> asyncGet(Supplier<T> func){
 		final var promise = new Promise<T>();
 		final var thread = new Thread(() ->{
 			try {
@@ -615,14 +591,14 @@ public class Promise<T> implements Future<T>{
 		});
 		thread.start();
 		
-		return promise;
+		return new PromiseAndThread<T>(promise, thread);
 	}
 	
 	/**
 	 * Runs the given function in a new Thread.
 	 * @return Resolves when function completes and rejects if the function throws an error.
 	 */
-	public static Promise<Void> asyncRun(Runnable func){
+	public static PromiseAndThread<Void> asyncRun(Runnable func){
 		final var promise = new Promise<Void>();
 		final var thread = new Thread(() -> {
 			try {
@@ -635,20 +611,12 @@ public class Promise<T> implements Future<T>{
 		});
 		thread.start();
 		
-		return promise;
+		return new PromiseAndThread<Void>(promise, thread);
 	}
 	
 	
-	public static class PromiseAndThread<T>{
-		public final Promise<T> promise;
-		public final Thread thread;
-		private PromiseAndThread(Promise<T> promise, Thread thread){
-			this.promise = promise;
-			this.thread = thread;
-		}
-	}
 	/**
-	 * Constructs a new Promise by running the initializer in parallel.
+	 * Constructs a new Promise by running the initializer in a new thread.
 	 */
 	public static <T> PromiseAndThread<T> threadInit(Consumer<Promise<T>.Settle> initializer){
 		final var promise = new Promise<T>();
@@ -684,6 +652,15 @@ public class Promise<T> implements Future<T>{
 		return promise;
 	}
 	
+	/**
+	 * Constructor a promise that is already canceled.
+	 */
+	public static <T> Promise<T> canceled(){
+		final var promise = new Promise<T>();
+		promise.cancel();
+		return promise;
+	}
+	
 	public static class PromiseAndSettle<T>{
 		public final Promise<T> promise;
 		public final Promise<T>.Settle settle;
@@ -692,7 +669,9 @@ public class Promise<T> implements Future<T>{
 			this.settle = settle;
 		}
 	}
-	
+	/**
+	 * Returns a new promise and it's settle class.
+	 */
 	public static <T> PromiseAndSettle<T> externalInit() {
 		final var newPromise = new Promise<T>();
 		return new PromiseAndSettle<T>(newPromise, newPromise.new Settle());
@@ -702,6 +681,7 @@ public class Promise<T> implements Future<T>{
 	 * Converts the given Future to a Promise.
 	 */
 	public static <T> Promise<T> fromFuture(Future<T> future){
+		// first: the easy scenarios
 		if (future == null)
 			return null;
 		else if (future instanceof Promise<T> p)
@@ -723,6 +703,7 @@ public class Promise<T> implements Future<T>{
 			});
 			return result;
 		}
+		// second: the last resort:
 		else {
 			return Promise.<T>threadInit((settle) -> {
 				try {
@@ -741,26 +722,40 @@ public class Promise<T> implements Future<T>{
 	// cool static methods:
 	/**
 	 * @return A promise that resolves when all promises are fulfilled and
-	 * rejects when any of the promises is rejected.
+	 * rejects when any of the promises is rejected and cancels when any of the promises is canceled.
 	 */
 	public static Promise<Void> all(Iterable<Promise<?>> promises){
 		final var iter = promises.iterator();
+		
+		//How many promises there are so far
 		final var count = new AtomicInteger(0);
+		
+		//How many promises have been fulfilled so far 
 		final var fulfilledCount = new AtomicInteger(0);
+		
 		final var result = new Promise<Void>();
 		
 		while (iter.hasNext() && !result.isRejected()) {
+			// add the next promise to the count
 			count.incrementAndGet();
-			final var promise = iter.next();
 			
-			promise.thenRun(() -> {
+			// process the next promise
+			iter.next().thenApply(r -> {
+				// add this fulfillment to the count
 				fulfilledCount.incrementAndGet();
 				
+				// fulfill the result if the iterator has been fully processed. and every promise has been fulfilled.
 				if (!iter.hasNext() && fulfilledCount.get() == count.get())
 					result.resolve(null);
+				
+				return null;
+			}, e -> {
+				result.reject(e);
+				return null;
+			}, () -> {
+				result.cancel();
+				return null;
 			});
-			
-			promise.onErrorAccept((e) -> result.reject(e));
 		}
 		
 		if (fulfilledCount.get() == count.get())
@@ -770,18 +765,36 @@ public class Promise<T> implements Future<T>{
 	}
 	
 	/**
-	 * @return A promise that is settled with the outcome of the first promise
-	 * to be settled (resolved or rejected). If resolved, the returned promise
-	 * will resolve with the promise that resolved. If rejected, the returned 
-	 * promise will reject with the error from the rejected promise.
+	 * @return A promise that resolves when any of the promises is fulfilled or rejected. Cancels if all promises are canceled.
 	 */
-	public static <T> Promise<Promise<T>> race(Iterable<Promise<T>> promises){
+	public static <T> Promise<Promise<T>> any(Iterable<Promise<T>> promises){
 		final var result = new Promise<Promise<T>>();
-		for(final var promise : promises) {
-			if (result.isSettled())
-				break;
-			promise.thenRun(() -> result.resolve(promise));
-			promise.onErrorAccept((e) -> result.reject(e));
+		final var count = new AtomicInteger(0);
+		final var cancelCount = new AtomicInteger(0);
+		final var iter = promises.iterator();
+		
+		
+		while(iter.hasNext() && result.isPending()) {
+			count.incrementAndGet();
+			final var promise = iter.next();
+			
+			promise.thenApply(r -> {
+				result.resolve(promise);
+				return null;
+			}, e -> {
+				result.reject(e);
+				return null;
+			}, () -> {
+				cancelCount.incrementAndGet();
+				if (!iter.hasNext() && cancelCount.get() == count.get()) {
+					result.cancel();
+				}
+				return null;
+			});
+		}
+		
+		if (cancelCount.get() == count.get()) {
+			result.cancel();
 		}
 		
 		return result;
