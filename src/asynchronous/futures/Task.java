@@ -13,29 +13,34 @@ import asynchronous.TaskCancelException;
 /** contains a promise with a public method to cancel */
 public class Task<T> implements Future<T> {
 	private final Promise<T> _promise;
+	final Promise<T>.Settle settle;
 	Consumer<Boolean> canceler;
 	
 	public Promise<T> promise() { return _promise; }
 	
 	public Task(Consumer<Promise<T>.Settle> initializer, Consumer<Boolean> canceler) {
 		_promise = new Promise<T>(initializer);
+		settle = _promise.new Settle();
 		this.canceler = canceler;
 	}
-	
-	private Task(Promise<T> promise){
-		this._promise = promise;
-		this.canceler = null;
-	}
-	
-	Task(Consumer<Boolean> canceler) {
+
+	public Task(Consumer<Boolean> canceler) {
 		_promise = new Promise<T>();
+		settle = _promise.new Settle();
 		this.canceler = canceler;
 	}
 	
 	public Task() {
-		_promise = new Promise<T>();
-		canceler = null;
+		this(null);
 	}
+	
+	Task(Promise<T> promise, Consumer<Boolean> canceler){
+		_promise = promise;
+		settle = promise.new Settle();
+		this.canceler = canceler;
+	}
+	
+	
 	
 	@Override
 	public boolean cancel(boolean mayInterruptIfRunning) {
@@ -45,7 +50,7 @@ public class Task<T> implements Future<T> {
 			else {
 				if (canceler != null)
 					canceler.accept(mayInterruptIfRunning);
-				_promise.cancel();
+				settle.cancel();
 				return true;
 			}
 		}
@@ -67,35 +72,35 @@ public class Task<T> implements Future<T> {
 		return _promise.get(timeout, unit);
 	}
 	
-	public static class threadInit_result<T>{
+	public static class TaskAndThread<T>{
 		public final Task<T> task;
 		public final Thread thread;
-		public threadInit_result(Task<T> task, Thread thread) {
+		public TaskAndThread(Task<T> task, Thread thread) {
 			this.task = task;
 			this.thread = thread;
 		}
 	}
 	
-	public static <T> threadInit_result<T> threadInit(Consumer<Promise<T>.Settle> initializer){
+	public static <T> TaskAndThread<T> threadInit(Consumer<Promise<T>.Settle> initializer){
 		final var promiseAndThread = Promise.<T>threadInit(initializer);
-		final var task = new Task<T>(promiseAndThread.promise);
+		final var task = new Task<T>(promiseAndThread.promise, null);
 		final var thread = promiseAndThread.thread;
 		task.canceler = (interruptWhileRunning) -> {
 			if (interruptWhileRunning)
 				thread.interrupt();
 		};
 		
-		return new threadInit_result<T>(task, thread);
+		return new TaskAndThread<T>(task, thread);
 	}
 	
 	public static <T> Task<T> asyncGet(Supplier<T> func){
 		final var task = new Task<T>();
 		final var thread = new Thread(() -> {
 			try {
-				task._promise.resolve(func.get());
+				task.settle.resolve(func.get());
 			}
 			catch(Throwable e) {
-				task._promise.reject(e);
+				task.settle.reject(e);
 			}
 		});
 		task.canceler = (interruptIfRunning) -> {

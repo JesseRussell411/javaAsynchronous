@@ -6,6 +6,7 @@ import java.util.concurrent.atomic.*;
 import java.util.function.*;
 
 
+
 public class Promise<T> implements Future<T>{
 	private volatile T result = null;
 	private volatile Throwable error = null;
@@ -14,6 +15,12 @@ public class Promise<T> implements Future<T>{
 	private volatile boolean canceled;
 	private final Object awaitLock = new Object();
 	private final List<Callback<T, ?>> callbacks = new ArrayList<Callback<T, ?>>();
+	
+	public Promise(Consumer<Settle> initializer) {
+		initializer.accept(new Settle());
+	}
+	
+	Promise(){}
 	
 	/** Whether the Promise is waiting to be settled */
 	public boolean isPending() { return !fulfilled && !rejected && !canceled; }
@@ -79,11 +86,11 @@ public class Promise<T> implements Future<T>{
 	}
 	
 	/** 
-	 * Resolve the promise with the given result, only takes effect if the
+	 * Resolve the promise with the given result. Only takes effect if the
 	 * Promise hasn't been settled yet. If it has, the call will be ignored.
 	 * @return Whether the call takes effect. If false: the call was ignored.
 	 * */
-	boolean resolve(T result) {
+	private boolean resolve(T result) {
 		if (isSettled()) return false;
 		
 		synchronized(this) {
@@ -98,12 +105,13 @@ public class Promise<T> implements Future<T>{
 	}
 	
 	/** 
-	 * Reject the promise with the given error, only takes effect if the
+	 * Reject the promise with the given error. Only takes effect if the
 	 * Promise hasn't been settled yet. If it has, the call will be ignored.
 	 * @return Whether the call takes effect. If false: the call was ignored.
-	 * */
-	boolean reject(Throwable error) {
+	 */
+	private boolean reject(Throwable error) {
 		if (isSettled()) return false;
+		
 		synchronized(this) {
 			if (isSettled()) {
 				return false;
@@ -115,8 +123,14 @@ public class Promise<T> implements Future<T>{
 		}
 	}
 	
-	boolean cancel() {
+	/** 
+	 * Cancel the promise. Only takes effect if the
+	 * Promise hasn't been settled yet. If it has, the call will be ignored.
+	 * @return Whether the call takes effect. If false: the call was ignored.
+	 */
+	private boolean cancel() {
 		if (isSettled()) return false;
+		
 		synchronized(this) {
 			if (isSettled()) {
 				return false;
@@ -128,7 +142,14 @@ public class Promise<T> implements Future<T>{
 		}
 	}
 	
-	boolean resolveFrom(Supplier<T> resultGetter) {
+	/**
+	 * If the promise hasn't been settled yet: runs the given function and
+	 * resolves the promise with the result. The function is not run if the
+	 * promise has already been settled.
+	 * @param resultGetter Supplies the result to resolve the promise with.
+	 * @return Whether the function was run and it's result used.
+	 */
+	private boolean resolveFrom(Supplier<T> resultGetter) {
 		if (isSettled()) return false;
 		
 		synchronized(this) {
@@ -147,7 +168,14 @@ public class Promise<T> implements Future<T>{
 		}
 	}
 	
-	boolean rejectFrom(Supplier<Throwable> errorGetter) {
+	/**
+	 * If the promise hasn't been settled yet: runs the given function and
+	 * rejects the promise with the result. The function is not run if the
+	 * promise has already been settled.
+	 * @param errorGetter Supplies the error to reject the promise with.
+	 * @return Whether the function was run and it's result used.
+	 */
+	private boolean rejectFrom(Supplier<Throwable> errorGetter) {
 		if (isSettled()) return false;
 		
 		synchronized(this) {
@@ -165,31 +193,63 @@ public class Promise<T> implements Future<T>{
 		}
 	}
 	
+	
+	/**
+	 * Functional class. Use to settle the promise.
+	 */
 	public class Settle {
+		/** 
+		 * Resolve the promise with the given result. Only takes effect if the
+		 * Promise hasn't been settled yet. If it has, the call will be ignored.
+		 * @return Whether the call takes effect. If false: the call was ignored.
+		 */
 		public boolean resolve(T result) {
 			return Promise.this.resolve(result);
 		}
+		/** 
+		 * Resolve the promise with null. Only takes effect if the
+		 * Promise hasn't been settled yet. If it has, the call will be ignored.
+		 * @return Whether the call takes effect. If false: the call was ignored.
+		 */
+		public boolean resolve() { return resolve(null); }
+		/** 
+		 * Reject the promise with the given error. Only takes effect if the
+		 * Promise hasn't been settled yet. If it has, the call will be ignored.
+		 * @return Whether the call takes effect. If false: the call was ignored.
+		 */
 		public boolean reject(Throwable error) {
 			return Promise.this.reject(error);
 		}
-		public boolean resolve() { return resolve(null); }
-		public boolean resolveFrom(Supplier<T> resultGetter) {
-			return Promise.this.resolveFrom(resultGetter);
-		}
-		public boolean rejectFrom(Supplier<Throwable> error) {
-			return Promise.this.rejectFrom(error);
-		}
+		/** 
+		 * Cancel the promise. Only takes effect if the
+		 * Promise hasn't been settled yet. If it has, the call will be ignored.
+		 * @return Whether the call takes effect. If false: the call was ignored.
+		 */
 		public boolean cancel() {
 			return Promise.this.cancel();
 		}
+		/**
+		 * If the promise hasn't been settled yet: runs the given function and
+		 * resolves the promise with the result. The function is not run if the
+		 * promise has already been settled.
+		 * @param resultGetter Supplies the result to resolve the promise with.
+		 * @return Whether the function was run and it's result used.
+		 */
+		public boolean resolveFrom(Supplier<T> resultGetter) {
+			return Promise.this.resolveFrom(resultGetter);
+		}
+		/**
+		 * If the promise hasn't been settled yet: runs the given function and
+		 * rejects the promise with the result. The function is not run if the
+		 * promise has already been settled.
+		 * @param errorGetter Supplies the error to reject the promise with.
+		 * @return Whether the function was run and it's result used.
+		 */
+		public boolean rejectFrom(Supplier<Throwable> error) {
+			return Promise.this.rejectFrom(error);
+		}
 		
 		Settle(){}
-	}
-	
-	Promise(){}
-	
-	public Promise(Consumer<Settle> initializer) {
-		initializer.accept(new Settle());
 	}
 	
 	// callback stuff
@@ -220,11 +280,13 @@ public class Promise<T> implements Future<T>{
 			callback.applyResolve(result);
 		else if (isRejected())
 			callback.applyReject(error);
+		else if (isCanceled())
+			callback.applyCancel();
 		else
 			callbacks.add(callback);
 		
 		// return the callback's promise
-		return callback.getNext();
+		return callback.promise();
 	}
 	
 	// then with error and cancel
@@ -577,10 +639,10 @@ public class Promise<T> implements Future<T>{
 	}
 	
 	
-	public static class threadInit_result<T>{
+	public static class PromiseAndThread<T>{
 		public final Promise<T> promise;
 		public final Thread thread;
-		private threadInit_result(Promise<T> promise, Thread thread){
+		private PromiseAndThread(Promise<T> promise, Thread thread){
 			this.promise = promise;
 			this.thread = thread;
 		}
@@ -588,7 +650,7 @@ public class Promise<T> implements Future<T>{
 	/**
 	 * Constructs a new Promise by running the initializer in parallel.
 	 */
-	public static <T> threadInit_result<T> threadInit(Consumer<Promise<T>.Settle> initializer){
+	public static <T> PromiseAndThread<T> threadInit(Consumer<Promise<T>.Settle> initializer){
 		final var promise = new Promise<T>();
 		final var settle = promise.new Settle();
 		final var thread = new Thread(() -> {
@@ -601,7 +663,7 @@ public class Promise<T> implements Future<T>{
 		});
 		thread.start();
 		
-		return new threadInit_result<T>(promise, thread);
+		return new PromiseAndThread<T>(promise, thread);
 	}
 	
 	/**
@@ -622,11 +684,27 @@ public class Promise<T> implements Future<T>{
 		return promise;
 	}
 	
+	public static class PromiseAndSettle<T>{
+		public final Promise<T> promise;
+		public final Promise<T>.Settle settle;
+		public PromiseAndSettle(Promise<T> promise, Promise<T>.Settle settle) {
+			this.promise = promise;
+			this.settle = settle;
+		}
+	}
+	
+	public static <T> PromiseAndSettle<T> externalInit() {
+		final var newPromise = new Promise<T>();
+		return new PromiseAndSettle<T>(newPromise, newPromise.new Settle());
+	}
+	
 	/**
 	 * Converts the given Future to a Promise.
 	 */
 	public static <T> Promise<T> fromFuture(Future<T> future){
-		if (future instanceof Promise<T> p)
+		if (future == null)
+			return null;
+		else if (future instanceof Promise<T> p)
 			return p;
 		else if (future instanceof Task<T> t)
 			return t.promise();
@@ -635,7 +713,14 @@ public class Promise<T> implements Future<T>{
 		else if (future instanceof CompletableFuture<T> cf) {
 			final var result = new Promise<T>();
 			cf.thenAccept(t -> result.resolve(t));
-			cf.exceptionally(e -> {result.reject(e); return null;});
+			cf.exceptionally(e -> {
+				if (cf.isCancelled())
+					result.cancel();
+				else
+					result.reject(e);
+					
+				return null;
+			});
 			return result;
 		}
 		else {
@@ -644,7 +729,10 @@ public class Promise<T> implements Future<T>{
 					settle.resolve(future.get());
 				}
 				catch(Throwable e) {
-					settle.reject(e);
+					if (future.isCancelled())
+						settle.cancel();
+					else
+						settle.reject(e);
 				}
 			}).promise;
 		}
@@ -704,25 +792,25 @@ public class Promise<T> implements Future<T>{
 		boolean applyResolve(T result);
 		boolean applyReject(Throwable error);
 		boolean applyCancel();
-		Promise<R> getNext();
+		Promise<R> promise();
 	}
 
 	private class SyncCallback<R> implements Callback<T, R> {
 		private final Function<T, R> then;
-		private final Function<Throwable, R> catcher;
+		private final Function<Throwable, R> onError;
 		private final Supplier<R> onCancel;
 		private final Promise<R> next = new Promise<R>();
 		
-		SyncCallback(Function<T, R> then, Function<Throwable, R> catcher, Supplier<R> onCancel) {
+		SyncCallback(Function<T, R> then, Function<Throwable, R> onError, Supplier<R> onCancel) {
 			if (then != null)
 				this.then = then;
 			else
 				this.then = t -> null;
 				
-			if (catcher != null)
-				this.catcher = catcher;
+			if (onError != null)
+				this.onError = onError;
 			else
-				this.catcher = e -> {next.reject(e); return null;};
+				this.onError = e -> {next.reject(e); return null;};
 			
 			if (onCancel != null)
 				this.onCancel = onCancel;
@@ -730,7 +818,7 @@ public class Promise<T> implements Future<T>{
 				this.onCancel = () -> {next.cancel(); return null;};
 		}
 		
-		public Promise<R> getNext() { return next; }
+		public Promise<R> promise() { return next; }
 		
 		@Override
 		public boolean applyResolve(T result) {
@@ -745,7 +833,7 @@ public class Promise<T> implements Future<T>{
 		@Override
 		public boolean applyReject(Throwable error){
 			try {
-				return next.resolve(catcher.apply(error));
+				return next.resolve(onError.apply(error));
 			}
 			catch(Throwable e) {
 				return next.reject(e);
@@ -765,21 +853,21 @@ public class Promise<T> implements Future<T>{
 
 	private class AsyncCallback<R> implements Callback<T, R>{
 		private final Function<T, Promise<R>> then;
-		private final Function<Throwable, Promise<R>> catcher;
+		private final Function<Throwable, Promise<R>> onError;
 		private final Supplier<Promise<R>> onCancel;
 		private final Promise<R> next = new Promise<R>();
 		private volatile boolean applied = false;
 		
-		AsyncCallback(Function<T, Promise<R>> then, Function<Throwable, Promise<R>> catcher, Supplier<Promise<R>> onCancel) {
+		AsyncCallback(Function<T, Promise<R>> then, Function<Throwable, Promise<R>> onError, Supplier<Promise<R>> onCancel) {
 			if (then != null)
 				this.then = then;
 			else
 				this.then = t -> {return Promise.<R>resolved(null);};
 				
-			if (catcher != null)
-				this.catcher = catcher;
+			if (onError != null)
+				this.onError = onError;
 			else
-				this.catcher = e -> {next.reject(e); return null;};
+				this.onError = e -> {next.reject(e); return null;};
 			
 			if (onCancel != null)
 				this.onCancel = onCancel;
@@ -787,7 +875,7 @@ public class Promise<T> implements Future<T>{
 				this.onCancel = () -> {next.cancel(); return null;};
 		}
 		
-		public Promise<R> getNext() { return next; }
+		public Promise<R> promise() { return next; }
 		
 		@Override
 		public boolean applyResolve(T result) {
@@ -797,7 +885,10 @@ public class Promise<T> implements Future<T>{
 					return false;
 				}
 				else {
-					then.apply(result).thenAccept(r -> next.resolve(r), e -> next.reject(e), () -> next.cancel());
+					then.apply(result).thenAccept(
+							r -> next.resolve(r),
+							e -> next.reject(e),
+							() -> next.cancel());
 					applied = true;
 					return true;
 				}
@@ -812,7 +903,10 @@ public class Promise<T> implements Future<T>{
 					return false;
 				}
 				else {
-					catcher.apply(error).thenAccept(r -> next.resolve(r), e -> next.reject(e), () -> next.cancel());
+					onError.apply(error).thenAccept(
+							r -> next.resolve(r),
+							e -> next.reject(e),
+							() -> next.cancel());
 					applied = true;
 					return true;
 				}
@@ -827,7 +921,10 @@ public class Promise<T> implements Future<T>{
 					return false;
 				}
 				else {
-					onCancel.get().thenAccept(r -> next.resolve(r), e -> next.reject(e), () -> next.cancel());
+					onCancel.get().thenAccept(
+							r -> next.resolve(r),
+							e -> next.reject(e),
+							() -> next.cancel());
 					applied = true;
 					return true;
 				}

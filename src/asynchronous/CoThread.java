@@ -48,12 +48,12 @@ public class CoThread<R> implements AutoCloseable{
 					func.accept(yield);
 				}
 				catch(Throwable e) {
-					deferred.reject(e);
+					deferred.settle().reject(e);
 				}
 				finally {
 					running = false;
 					dead = true;
-					deferred.resolve(new Result<R>());
+					deferred.settle().resolve(new Result<R>());
 				}
 			}
 		};
@@ -101,7 +101,7 @@ public class CoThread<R> implements AutoCloseable{
 		 */
 		public synchronized void accept(R value) throws InterruptedException {
 			running = false;
-			deferred.resolve(new Result<R>(value));
+			deferred.settle().resolve(new Result<R>(value));
 			
 			while(!running) {
 				wait();

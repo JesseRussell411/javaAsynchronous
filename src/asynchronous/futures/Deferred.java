@@ -5,44 +5,25 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.function.*;
 
-import asynchronous.TaskCancelException;
-
 
 /** contains a task and is resolve or rejected with public methods instead of an initializer. */
 public class Deferred<T> implements Future<T> {
 	private final Promise<T> _promise;
+	private final Promise<T>.Settle _settle;
 	private final Task<T> _task;
 	
 	public Promise<T> promise() { return _promise; }
 	public Task<T> task() { return _task; }
+	public Promise<T>.Settle settle() { return _settle; }
 	
 	public Deferred(Consumer<Boolean> canceler) {
-		_task = new Task<T>(canceler);
+		_task = new Task<T>(new Promise<T>(), canceler);
 		_promise = _task.promise();
+		_settle = _task.settle;
 	}
 	
 	public Deferred() {
-		_task = new Task<T>(null);
-		_promise = _task.promise();
-	}
-	
-	public boolean resolve(T result) {
-		return _promise.resolve(result);
-	}
-	public boolean reject(Throwable error) {
-		return _promise.reject(error);
-	}
-	
-	public boolean resolveFrom(Supplier<T> resultGetter) {
-		return _promise.resolveFrom(resultGetter);
-	}
-	
-	public boolean rejectFrom(Supplier<Throwable> errorGetter) {
-		return _promise.rejectFrom(errorGetter);
-	}
-	
-	public boolean cancel() {
-		return _promise.cancel();
+		this(null);
 	}
 	
 	@Override

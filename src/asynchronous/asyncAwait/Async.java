@@ -12,7 +12,7 @@ import asynchronous.Timing;
 import asynchronous.UncheckedInterruptedException;
 import asynchronous.futures.Deferred;
 import asynchronous.futures.Promise;
-import asynchronous.futures.PromiseCancellationException;
+import asynchronous.futures.FutureCancellationException;
 import exceptionsPlus.UncheckedWrapper;
 import functionPlus.*;
 import reference.Ref;
@@ -65,16 +65,13 @@ public class Async {
 	 * Runs all Async instances in the execution queue.
 	 * @throws InterruptedException
 	 */
-	public void execute(MessageReference<Integer> maxThreadCount, MessageReference<Boolean> listen, MessageReference<Boolean> stop) throws InterruptedException {
-		if (maxThreadCount.get() < 0)
-			throw new IllegalArgumentException("maxThreadCount must be >= 0");
-		
-		maxThreadCount.onSet(v -> {	
+	public void execute(VolitileMessenger<Integer> maxThreadCount, VolitileMessenger<Boolean> listen, VolitileMessenger<Boolean> stop) throws InterruptedException {
+		maxThreadCount.onChange(v -> {
 			synchronized(executeWaitLock) {
 				executeWaitLock.notifyAll();
 			}
 		});
-		stop.onSet(v -> {
+		stop.onChange(v -> {
 			if (v == false)
 				return;
 			
@@ -82,7 +79,7 @@ public class Async {
 				executeWaitLock.notifyAll();
 			}
 		});
-		listen.onSet(v -> {	
+		listen.onChange(v -> {	
 			synchronized(executeWaitLock) {
 				executeWaitLock.notifyAll();
 			}
@@ -96,11 +93,9 @@ public class Async {
 			while(!stop.get() && threadCount.get() < maxThreadCount.get() && (instance = executionQueue.poll()) != null) {
 				threadCount.incrementAndGet();
 				
-				final var promise = instance.execute();
-				promise.onError(e -> {
-					System.out.println(e);
-				});
-				promise.onSettledRun(() -> {
+				// execute the instance
+				// the returned promise will tell us when the instance yields again or if it completes or throws an error.
+				instance.execute().onSettledRun(() -> {
 					threadCount.decrementAndGet();
 					synchronized(executeWaitLock) {
 						executeWaitLock.notifyAll();
@@ -125,36 +120,36 @@ public class Async {
 		} while(!stop.get() && !(!listen.get() && executionQueue.isEmpty() && runningInstanceCount.get() == 0));
 	}
 	
-	public void execute(MessageReference<Boolean> listen, MessageReference<Boolean> stop) throws InterruptedException{
-		execute(new MessageReference<Integer>(1), listen, stop);
+	public void execute(VolitileMessenger<Boolean> listen, VolitileMessenger<Boolean> stop) throws InterruptedException{
+		execute(new VolitileMessenger<Integer>(1), listen, stop);
 	}
 	
-	public void execute(MessageReference<Integer> maxThreadCount) throws InterruptedException{
-		execute(maxThreadCount, new MessageReference<Boolean>(false), new MessageReference<Boolean>(false));
+	public void execute(VolitileMessenger<Integer> maxThreadCount) throws InterruptedException{
+		execute(maxThreadCount, new VolitileMessenger<Boolean>(false), new VolitileMessenger<Boolean>(false));
 	}
 	
 	public void execute(int maxThreadCount, boolean listen) throws InterruptedException{
-		execute(new MessageReference<Integer>(maxThreadCount), new MessageReference<Boolean>(listen), new MessageReference<Boolean>(false));
+		execute(new VolitileMessenger<Integer>(maxThreadCount), new VolitileMessenger<Boolean>(listen), new VolitileMessenger<Boolean>(false));
 	}
 	
 	public void execute(int maxThreadCount) throws InterruptedException{
-		execute(new MessageReference<Integer>(maxThreadCount), new MessageReference<Boolean>(false), new MessageReference<Boolean>(false));
+		execute(new VolitileMessenger<Integer>(maxThreadCount), new VolitileMessenger<Boolean>(false), new VolitileMessenger<Boolean>(false));
 	}
 	
-	public void execute(int maxThreadCount, boolean listen, MessageReference<Boolean> stop) throws InterruptedException{
-		execute(new MessageReference<Integer>(maxThreadCount), new MessageReference<Boolean>(listen), stop);
+	public void execute(int maxThreadCount, boolean listen, VolitileMessenger<Boolean> stop) throws InterruptedException{
+		execute(new VolitileMessenger<Integer>(maxThreadCount), new VolitileMessenger<Boolean>(listen), stop);
 	}
 	
-	public void execute(int maxThreadCount, MessageReference<Boolean> stop) throws InterruptedException{
-		execute(new MessageReference<Integer>(maxThreadCount), new MessageReference<Boolean>(false), stop);
+	public void execute(int maxThreadCount, VolitileMessenger<Boolean> stop) throws InterruptedException{
+		execute(new VolitileMessenger<Integer>(maxThreadCount), new VolitileMessenger<Boolean>(false), stop);
 	}
 	
 	public void execute() throws InterruptedException{
-		execute(new MessageReference<Integer>(1), new MessageReference<Boolean>(false), new MessageReference<Boolean>(false));
+		execute(new VolitileMessenger<Integer>(1), new VolitileMessenger<Boolean>(false), new VolitileMessenger<Boolean>(false));
 	}
 	
 	
-	// Await functional class for awaiting promises in an Async functional class.
+	// Await functional class for awaiting futures in an Async functional class.
 	public class Await{
 		private final CoThread<Promise<?>>.Yield yield;
 		
@@ -164,16 +159,19 @@ public class Async {
 		}
 		
 		/**
-		 * Awaits the given promise, returning it's result when it's resolved.
-		 * @param <T> The type of the promise.
-		 * @param promise
-		 * @return result of promise or null if the promise is null.
+		 * Awaits the given future, returning it's result when it's resolved.
+		 * @param <T> The type of the future.
+		 * @param future The future to await.
+		 * @param onCancel called if the future is canceled. if null: throws a PromiseCancellationException if the future is canceled.
+		 * @return result of future or null if the future is null.
 		 * @throws UncheckedWrapper Wrapper around all Exceptions checked and un-checked. Will contain whatever exception was thrown.
-		 * This is the only exception thrown by await.apply.
+		 * This is the only exception thrown by await.apply. PromiseCancellationException: if the future is canceled and onCancel was null.
 		 */
-		public <T> T apply(Promise<T> promise, Supplier<T> onCancel) throws UncheckedWrapper {
-			if (promise == null)
+		public <T> T apply(Future<T> future, Supplier<T> onCancel) throws UncheckedWrapper, FutureCancellationException {
+			if (future == null)
 				return null;
+			
+			final var promise = Promise.fromFuture(future);
 			
 			try {
 				// yield to Async.execute. wait for the promise to complete. Async.execute will take care of that.
@@ -188,40 +186,16 @@ public class Async {
 				}
 				else if (promise.isCanceled()) {
 					if (onCancel == null)
-						throw new PromiseCancellationException(promise);
+						throw new FutureCancellationException(future);
 					else
 						return onCancel.get();
 				}
 				else if (promise.isSettled()) {
-					// ?
-					return null;
+					throw new IllegalStateException("The promise given to Async.Await.apply has been settled but is not fulfilled, rejected, or canceled.");
 				}
 				else {
-					// if this block runs, something is wrong. Most likely with Async.execute().
-					System.err.println("There is something wrong with Async.execute (most likely). After yielding in Await.apply, the promise is still not complete.");
-					return null;
+					throw new IllegalStateException("The promise given to Async.Await.apply has not been settled after yielding.");
 				}
-			}
-			catch(Throwable e) {
-				throw UncheckedWrapper.uncheckify(e);
-			}
-		}
-		
-		public <T> T apply(Promise<T> promise) throws UncheckedWrapper {
-			return apply(promise, null);
-		}
-		
-		/**
-		 * Awaits the given future, returning it's result when it's resolved.
-		 * @param <T> The type of the promise.
-		 * @param promise
-		 * @return result of promise
-		 * @throws UncheckedWrapper Wrapper around all Exceptions checked and un-checked. Will contain whatever exception was thrown.
-		 * This is the only exception thrown by await.apply.
-		 */
-		public <T> T apply(Future<T> future, Supplier<T> onCancel) throws UncheckedWrapper {
-			try {
-				return apply(Promise.fromFuture(future), onCancel);
 			}
 			catch(Throwable e) {
 				throw UncheckedWrapper.uncheckify(e);
@@ -249,14 +223,14 @@ public class Async {
 		
 		// utils:
 		/**
-		 * Non-blocking sleep function. May sleep for longer than the specified time while the instance waits its turn to execute again.
+		 * Asynchronous sleep function. May sleep for longer than the specified time while the instance waits its turn to execute again.
 		 */
 		public void sleep(long milliseconds, int nanoseconds) {
 			apply(Timing.setTimeout(() -> null, milliseconds, nanoseconds));
 		}
 		
 		/**
-		 * Non-blocking sleep function. May sleep for longer than the specified time while the instance waits its turn to execute again.
+		 * Asynchronous sleep function. May sleep for longer than the specified time while the instance waits its turn to execute again.
 		 */
 		public void sleep(long milliseconds) {
 			apply(Timing.setTimeout(() -> null, milliseconds));
@@ -329,25 +303,20 @@ public class Async {
 			
 			private synchronized Promise<Result<Promise<?>>> execute() {
 				return coThread.run().thenAccept(result -> {
-					result.matchAccept(promise -> {
-						// yielded with promise:
-						 // tell the promise to add this called instance back onto the execution queue when it's settled
-						promise.onSettledRun(() ->
-							asyncAwaitCompleteNotify(this));
-						//
-					}, () -> {
-						//completed:
+					if (result.undefined) {
 						coThread.close();
-						deferred.resolve(this.result);
-						//
-					});
+						deferred.settle().resolve(this.result);
+					} else {
+						result.value.onSettledRun(() -> 
+							asyncAwaitCompleteNotify(this));
+					}
 				}, error ->{
 					// threw an error:
-					deferred.reject(error);
+					deferred.settle().reject(error);
 					//
 				}, () -> {
 					// was canceled for some reason:
-					deferred.cancel();
+					deferred.settle().cancel();
 					//
 				});
 			}
