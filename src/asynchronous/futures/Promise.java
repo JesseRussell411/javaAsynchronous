@@ -14,7 +14,7 @@ public class Promise<T> implements Future<T>{
 	private volatile boolean rejected;
 	private volatile boolean canceled;
 	private final Object awaitLock = new Object();
-	private final List<Callback<T, ?>> callbacks = new ArrayList<Callback<T, ?>>();
+	private final Queue<Callback<T, ?>> callbacks = new ConcurrentLinkedQueue<>();
 	
 	public Promise(Consumer<Settle> initializer) {
 		initializer.accept(new Settle());
@@ -223,46 +223,54 @@ public class Promise<T> implements Future<T>{
 	// callback stuff
 	/** Resolve all callbacks with the given result */
 	private synchronized void resolveCallbacks(T result) {
-		for(final var callback : callbacks)
+		Callback<T, ?> callback;
+		while((callback = callbacks.poll()) != null)
 			callback.applyResolve(result);
-		callbacks.clear();
 	}
 	/** Reject all callbacks with the given error */
 	private synchronized void rejectCallbacks(Throwable error) {
-		for(final var callback : callbacks)
+		Callback<T, ?> callback;
+		while((callback = callbacks.poll()) != null)
 			callback.applyReject(error);
-		callbacks.clear();
 	}
 	/** Cancel all callbacks */
 	private synchronized void cancelCallbacks() {
-		for(final var callback : callbacks)
+		Callback<T, ?> callback;
+		while((callback = callbacks.poll()) != null)
 			callback.applyCancel();
-		callbacks.clear();
+	}
+	
+	private boolean trySettleCallbacks() {
+		if (isFulfilled())
+			resolveCallbacks(result);
+		else if (isRejected())
+			rejectCallbacks(error);
+		else if (isCanceled())
+			cancelCallbacks();
+		else
+			return false;
+		
+		return true;
 	}
 	
 	/** Adds the callback to the promise, all callback methods (then, onError, onSettled) end up calling this one. */
-	private synchronized <R> Promise<R> addCallback(Callback<T, R> callback){
-		// if the promise has already been settled: run the callback now
-		// instead of putting it in the queue
-		if (isFulfilled())
-			callback.applyResolve(result);
-		else if (isRejected())
-			callback.applyReject(error);
-		else if (isCanceled())
-			callback.applyCancel();
-		else
-			callbacks.add(callback);
+	private <R> Promise<R> addCallback(Callback<T, R> callback){
+		// puts the callback in the queue
+		callbacks.add(callback);
+		
+		// try to settle the callbacks, this will settle the callback added if the promise has already been fulfilled.
+		trySettleCallbacks();
 		
 		// return the callback's promise
 		return callback.promise();
 	}
 	
 	// then with error and cancel
-	public synchronized <R> Promise<R> thenApply(Function<T, R> then, Function<Throwable, R> catcher, Supplier<R> onCancel){
+	public <R> Promise<R> thenApply(Function<T, R> then, Function<Throwable, R> catcher, Supplier<R> onCancel){
 		return addCallback(new SyncCallback<R>(then, catcher, onCancel));
 	}
 	
-	public synchronized Promise<T> thenAccept(Consumer<T> then, Consumer<Throwable> catcher, Runnable onCancel){
+	public Promise<T> thenAccept(Consumer<T> then, Consumer<Throwable> catcher, Runnable onCancel){
 		return thenApply(t -> {
 			then.accept(t);
 			return t;
@@ -275,11 +283,11 @@ public class Promise<T> implements Future<T>{
 		});
 	}
 	
-	public synchronized <R> Promise<R> thenGet(Supplier<R> then, Supplier<R> catcher, Supplier<R> onCancel){
+	public <R> Promise<R> thenGet(Supplier<R> then, Supplier<R> catcher, Supplier<R> onCancel){
 		return thenApply(t -> then.get(), e -> catcher.get(), onCancel);
 	}
 	
-	public synchronized Promise<T> thenRun(Runnable then, Runnable catcher, Runnable onCancel){
+	public Promise<T> thenRun(Runnable then, Runnable catcher, Runnable onCancel){
 		return thenApply(t -> {
 			then.run();
 			return result;
@@ -293,20 +301,20 @@ public class Promise<T> implements Future<T>{
 	}
 	
 	// async then with error and cancel
-	public synchronized <R> Promise<R> asyncThenApply(Function<T, Promise<R>> then, Function<Throwable, Promise<R>> catcher, Supplier<Promise<R>> onCancel){
+	public <R> Promise<R> asyncThenApply(Function<T, Promise<R>> then, Function<Throwable, Promise<R>> catcher, Supplier<Promise<R>> onCancel){
 		return addCallback(new AsyncCallback<R>(then, catcher, onCancel));
 	}
 	
-	public synchronized <R> Promise<R> asyncThenGet(Supplier<Promise<R>> then, Supplier<Promise<R>> catcher, Supplier<Promise<R>> onCancel){
+	public <R> Promise<R> asyncThenGet(Supplier<Promise<R>> then, Supplier<Promise<R>> catcher, Supplier<Promise<R>> onCancel){
 		return asyncThenApply(t -> then.get(), e -> catcher.get(), onCancel);
 	}
 	
 	// then with error
-	public synchronized <R> Promise<R> thenApply(Function<T, R> then, Function<Throwable, R> catcher){
+	public <R> Promise<R> thenApply(Function<T, R> then, Function<Throwable, R> catcher){
 		return addCallback(new SyncCallback<R>(then, catcher, null));
 	}
 	
-	public synchronized Promise<T> thenAccept(Consumer<T> then, Consumer<Throwable> catcher){
+	public Promise<T> thenAccept(Consumer<T> then, Consumer<Throwable> catcher){
 		return thenApply(t -> {
 			then.accept(t);
 			return t;
@@ -316,11 +324,11 @@ public class Promise<T> implements Future<T>{
 		});
 	}
 	
-	public synchronized <R> Promise<R> thenGet(Supplier<R> then, Supplier<R> catcher){
+	public <R> Promise<R> thenGet(Supplier<R> then, Supplier<R> catcher){
 		return thenApply(t -> then.get(), e -> catcher.get());
 	}
 	
-	public synchronized Promise<T> thenRun(Runnable then, Runnable catcher){
+	public Promise<T> thenRun(Runnable then, Runnable catcher){
 		return thenApply(t -> {
 			then.run();
 			return t;
@@ -331,31 +339,31 @@ public class Promise<T> implements Future<T>{
 	}
 	
 	// async then with error
-	public synchronized <R> Promise<R> asyncThenApply(Function<T, Promise<R>> then, Function<Throwable, Promise<R>> catcher){
+	public <R> Promise<R> asyncThenApply(Function<T, Promise<R>> then, Function<Throwable, Promise<R>> catcher){
 		return addCallback(new AsyncCallback<R>(then, catcher, null));
 	}
 	
-	public synchronized <R> Promise<R> asyncThenGet(Supplier<Promise<R>> then, Supplier<Promise<R>> catcher){
+	public <R> Promise<R> asyncThenGet(Supplier<Promise<R>> then, Supplier<Promise<R>> catcher){
 		return asyncThenApply(t -> then.get(), e -> catcher.get());
 	}
 	
 	// just then
-	public synchronized <R> Promise<R> thenApply(Function<T, R> then){
+	public <R> Promise<R> thenApply(Function<T, R> then){
 		return addCallback(new SyncCallback<R>(then, null, null));
 	}
 	
-	public synchronized Promise<T> thenAccept(Consumer<T> then){
+	public Promise<T> thenAccept(Consumer<T> then){
 		return thenApply(t -> {
 			then.accept(t);
 			return t;
 		});
 	}
 	
-	public synchronized <R> Promise<R> thenGet(Supplier<R> then){
+	public <R> Promise<R> thenGet(Supplier<R> then){
 		return thenApply(r -> then.get());
 	}
 	
-	public synchronized Promise<T> thenRun(Runnable then){
+	public Promise<T> thenRun(Runnable then){
 		return thenApply(t -> {
 			then.run();
 			return t;
@@ -363,31 +371,31 @@ public class Promise<T> implements Future<T>{
 	}
 	
 	// async just then
-	public synchronized <R> Promise<R> asyncThenApply(Function<T, Promise<R>> then){
+	public <R> Promise<R> asyncThenApply(Function<T, Promise<R>> then){
 		return addCallback(new AsyncCallback<R>(then, null, null));
 	}
 	
-	public synchronized <R> Promise<R> asyncThenGet(Supplier<Promise<R>> then){
+	public <R> Promise<R> asyncThenGet(Supplier<Promise<R>> then){
 		return asyncThenApply(t -> then.get());
 	}
 	
 	// on error
-	public synchronized <R> Promise<R> onErrorApply(Function<Throwable, R> catcher){
+	public <R> Promise<R> onErrorApply(Function<Throwable, R> catcher){
 		return addCallback(new SyncCallback<R>(null, catcher, null));
 	}
 	
-	public synchronized Promise<Void> onErrorAccept(Consumer<Throwable> catcher) {
+	public Promise<Void> onErrorAccept(Consumer<Throwable> catcher) {
 		return onErrorApply(e -> {
 			catcher.accept(e);
 			return null;
 		});
 	}
 	
-	public synchronized <R> Promise<R> onErrorGet(Supplier<R> catcher){
+	public <R> Promise<R> onErrorGet(Supplier<R> catcher){
 		return onErrorApply(e -> catcher.get());
 	}
 	
-	public synchronized Promise<Void> onErrorRun(Runnable catcher){
+	public Promise<Void> onErrorRun(Runnable catcher){
 		return onErrorApply(e -> {
 			catcher.run();
 			return null;
@@ -395,20 +403,20 @@ public class Promise<T> implements Future<T>{
 	}
 	
 	// async on error
-	public synchronized <R> Promise<R> asyncOnErrorApply(Function<Throwable, Promise<R>> catcher){
+	public <R> Promise<R> asyncOnErrorApply(Function<Throwable, Promise<R>> catcher){
 		return addCallback(new AsyncCallback<R>(null, catcher, null));
 	}
 	
-	public synchronized <R> Promise<R> asyncOnErrorGet(Supplier<Promise<R>> catcher){
+	public <R> Promise<R> asyncOnErrorGet(Supplier<Promise<R>> catcher){
 		return asyncOnErrorApply(e -> catcher.get());
 	}
 	
 	// on cancel
-	public synchronized <R> Promise<R> onCancelGet(Supplier<R> onCancel){
+	public <R> Promise<R> onCancelGet(Supplier<R> onCancel){
 		return addCallback(new SyncCallback<R>(null, null, onCancel));
 	}
 	
-	public synchronized Promise<Void> onCancelRun(Runnable onCancel){
+	public Promise<Void> onCancelRun(Runnable onCancel){
 		return onCancelGet(() -> {
 			onCancel.run();
 			return null;
@@ -416,16 +424,16 @@ public class Promise<T> implements Future<T>{
 	}
 	
 	// async on cancel
-	public synchronized <R> Promise<R> asyncOnCancelGet(Supplier<Promise<R>> onCancel){
+	public <R> Promise<R> asyncOnCancelGet(Supplier<Promise<R>> onCancel){
 		return addCallback(new AsyncCallback<R>(null, null, onCancel));
 	}
 	
 	// on settled
-	public synchronized <R> Promise<R> onSettledGet(Supplier<R> settler){
+	public <R> Promise<R> onSettledGet(Supplier<R> settler){
 		return addCallback(new SyncCallback<R>(t -> settler.get(), e -> settler.get(), settler));
 	}
 	
-	public synchronized Promise<Void> onSettledRun(Runnable settler){
+	public Promise<Void> onSettledRun(Runnable settler){
 		return onSettledGet(() -> {
 			settler.run();
 			return null;
@@ -433,52 +441,52 @@ public class Promise<T> implements Future<T>{
 	}
 	
 	// async on settled
-	public synchronized <R> Promise<R> asyncOnSettledGet(Supplier<Promise<R>> settler){
+	public <R> Promise<R> asyncOnSettledGet(Supplier<Promise<R>> settler){
 		return addCallback(new AsyncCallback<R>(t -> settler.get(), e -> settler.get(), settler));
 	}
 	
 	// auto-FunctionType versions:
 	// then with error and cancel
-	public synchronized <R> Promise<R> then(Function<T, R> then, Function<Throwable, R> catcher, Supplier<R> onCancel){return thenApply(then, catcher, onCancel);}
-	public synchronized Promise<T>     then(Consumer<T> then, Consumer<Throwable> catcher, Runnable onCancel){return thenAccept(then, catcher, onCancel);}
-	public synchronized <R> Promise<R> then(Supplier<R> then, Supplier<R> catcher, Supplier<R> onCancel){return thenGet(then, catcher, onCancel);}
-	public synchronized Promise<T>     then(Runnable then, Runnable catcher, Runnable onCancel){return thenRun(then, catcher, onCancel);}
-	public synchronized <R> Promise<R> asyncThen(Function<T, Promise<R>> then, Function<Throwable, Promise<R>> catcher, Supplier<Promise<R>> onCancel){return asyncThenApply(then, catcher, onCancel);}
-	public synchronized <R> Promise<R> asyncThen(Supplier<Promise<R>> then, Supplier<Promise<R>> catcher, Supplier<Promise<R>> onCancel){return asyncThenGet(then, catcher, onCancel);}
+	public <R> Promise<R> then(Function<T, R> then, Function<Throwable, R> catcher, Supplier<R> onCancel){return thenApply(then, catcher, onCancel);}
+	public Promise<T>     then(Consumer<T> then, Consumer<Throwable> catcher, Runnable onCancel){return thenAccept(then, catcher, onCancel);}
+	public <R> Promise<R> then(Supplier<R> then, Supplier<R> catcher, Supplier<R> onCancel){return thenGet(then, catcher, onCancel);}
+	public Promise<T>     then(Runnable then, Runnable catcher, Runnable onCancel){return thenRun(then, catcher, onCancel);}
+	public <R> Promise<R> asyncThen(Function<T, Promise<R>> then, Function<Throwable, Promise<R>> catcher, Supplier<Promise<R>> onCancel){return asyncThenApply(then, catcher, onCancel);}
+	public <R> Promise<R> asyncThen(Supplier<Promise<R>> then, Supplier<Promise<R>> catcher, Supplier<Promise<R>> onCancel){return asyncThenGet(then, catcher, onCancel);}
 	
 	// then with error
-	public synchronized <R> Promise<R> then(Function<T, R> then, Function<Throwable, R> catcher){return thenApply(then, catcher);}
-	public synchronized Promise<T>     then(Consumer<T> then, Consumer<Throwable> catcher){return thenAccept(then, catcher);}
-	public synchronized <R> Promise<R> then(Supplier<R> then, Supplier<R> catcher){return thenGet(then, catcher);}
-	public synchronized Promise<T>     then(Runnable then, Runnable catcher){return thenRun(then, catcher);}
-	public synchronized <R> Promise<R> asyncThen(Function<T, Promise<R>> then, Function<Throwable, Promise<R>> catcher){return asyncThenApply(then, catcher);}
-	public synchronized <R> Promise<R> asyncThen(Supplier<Promise<R>> then, Supplier<Promise<R>> catcher){return asyncThenGet(then, catcher);}
+	public <R> Promise<R> then(Function<T, R> then, Function<Throwable, R> catcher){return thenApply(then, catcher);}
+	public Promise<T>     then(Consumer<T> then, Consumer<Throwable> catcher){return thenAccept(then, catcher);}
+	public <R> Promise<R> then(Supplier<R> then, Supplier<R> catcher){return thenGet(then, catcher);}
+	public Promise<T>     then(Runnable then, Runnable catcher){return thenRun(then, catcher);}
+	public <R> Promise<R> asyncThen(Function<T, Promise<R>> then, Function<Throwable, Promise<R>> catcher){return asyncThenApply(then, catcher);}
+	public <R> Promise<R> asyncThen(Supplier<Promise<R>> then, Supplier<Promise<R>> catcher){return asyncThenGet(then, catcher);}
 	
 	// just then
-	public synchronized <R> Promise<R> then(Function<T, R> then){return thenApply(then);}
-	public synchronized Promise<T>     then(Consumer<T> then){return thenAccept(then);}
-	public synchronized <R> Promise<R> then(Supplier<R> then){return thenGet(then);}
-	public synchronized Promise<T>     then(Runnable then){return thenRun(then);}
-	public synchronized <R> Promise<R> asyncThen(Function<T, Promise<R>> then){return asyncThenApply(then);}
-	public synchronized <R> Promise<R> AsyncThen(Supplier<Promise<R>> then){return asyncThenGet(then);}
+	public <R> Promise<R> then(Function<T, R> then){return thenApply(then);}
+	public Promise<T>     then(Consumer<T> then){return thenAccept(then);}
+	public <R> Promise<R> then(Supplier<R> then){return thenGet(then);}
+	public Promise<T>     then(Runnable then){return thenRun(then);}
+	public <R> Promise<R> asyncThen(Function<T, Promise<R>> then){return asyncThenApply(then);}
+	public <R> Promise<R> AsyncThen(Supplier<Promise<R>> then){return asyncThenGet(then);}
 	
 	// on error
-	public synchronized <R> Promise<R> onError(Function<Throwable, R> catcher){return onErrorApply(catcher);}
-	public synchronized Promise<Void>  onError(Consumer<Throwable> catcher) {return onErrorAccept(catcher);}
-	public synchronized <R> Promise<R> onError(Supplier<R> catcher){return onErrorGet(catcher);}
-	public synchronized Promise<Void>  onError(Runnable catcher){return onErrorRun(catcher);}
-	public synchronized <R> Promise<R> asyncOnError(Function<Throwable, Promise<R>> catcher){return asyncOnErrorApply(catcher);}
-	public synchronized <R> Promise<R> asyncOnError(Supplier<Promise<R>> catcher){return asyncOnErrorGet(catcher);}
+	public <R> Promise<R> onError(Function<Throwable, R> catcher){return onErrorApply(catcher);}
+	public Promise<Void>  onError(Consumer<Throwable> catcher) {return onErrorAccept(catcher);}
+	public <R> Promise<R> onError(Supplier<R> catcher){return onErrorGet(catcher);}
+	public Promise<Void>  onError(Runnable catcher){return onErrorRun(catcher);}
+	public <R> Promise<R> asyncOnError(Function<Throwable, Promise<R>> catcher){return asyncOnErrorApply(catcher);}
+	public <R> Promise<R> asyncOnError(Supplier<Promise<R>> catcher){return asyncOnErrorGet(catcher);}
 	
 	// on cancel
-	public synchronized <R> Promise<R> onCancel(Supplier<R> onCancel) { return onCancelGet(onCancel); }
-	public synchronized Promise<Void>  onCancel(Runnable onCancel){ return onCancelRun(onCancel); }
-	public synchronized <R> Promise<R> asyncOnCancel(Supplier<Promise<R>> onCancel) { return asyncOnCancelGet(onCancel); }
+	public <R> Promise<R> onCancel(Supplier<R> onCancel) { return onCancelGet(onCancel); }
+	public Promise<Void>  onCancel(Runnable onCancel){ return onCancelRun(onCancel); }
+	public <R> Promise<R> asyncOnCancel(Supplier<Promise<R>> onCancel) { return asyncOnCancelGet(onCancel); }
 
 	// on settled
-	public synchronized <R> Promise<R> onSettled(Supplier<R> settler){return onSettledGet(settler);}
-	public synchronized Promise<Void>  onSettled(Runnable settler){return onSettledRun(settler);}
-	public synchronized <R> Promise<R> asyncOnSettled(Supplier<Promise<R>> settler){return asyncOnSettledGet(settler);}
+	public <R> Promise<R> onSettled(Supplier<R> settler){return onSettledGet(settler);}
+	public Promise<Void>  onSettled(Runnable settler){return onSettledRun(settler);}
+	public <R> Promise<R> asyncOnSettled(Supplier<Promise<R>> settler){return asyncOnSettledGet(settler);}
 	
 	
 	// blocking wait
