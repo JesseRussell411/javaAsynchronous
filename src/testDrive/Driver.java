@@ -1,10 +1,13 @@
 package testDrive;
 import java.util.Random;
+import java.util.concurrent.ExecutionException;
 import java.util.function.*;
 
 import asynchronous.*;
 import asynchronous.asyncAwait.*;
+import asynchronous.futures.Promise;
 import exceptionsPlus.UncheckedWrapper;
+import reference.RefBoolean;
 
 public class Driver {
 	public static Async async = new Async();
@@ -26,6 +29,7 @@ public class Driver {
 //			await.apply(b.get()).toString() +
 //			await.apply(c.get()).toString()
 //		).get();
+		
 			
 		// with async parallel:
 		final var ap = a.get();
@@ -39,8 +43,8 @@ public class Driver {
 		).get();
 	}
 	
-	public static void main(String[] args) throws InterruptedException{
-		AsyncTriConcatenater(() -> Promise.resolved("----------hello "), () -> Promise.resolved("world"), () -> Promise.resolved("!")).thenAccept(r -> System.out.println(r));
+	public static void main(String[] args) throws InterruptedException {
+//		AsyncTriConcatenater(() -> Promise.resolved("----------hello "), () -> Promise.resolved("world"), () -> Promise.resolved("!")).thenAccept(r -> System.out.println(r));
 		
 		// *** Out-dated documentation, sorry about that
 		// Instructions:
@@ -121,6 +125,7 @@ public class Driver {
 //			printCrap.get();
 //			return await.apply(supplyHelloWorld.apply(2));
 //			});
+		
 		final var getHello = async.def("getHello", await -> {
 			// sleep for a bit
 			await.sleep(1000);
@@ -266,9 +271,9 @@ public class Driver {
 		var slowPromise = slowAdd.apply(0.1, 0.2);
 		
 		// multiple execution threads? Why not!
-		new Thread(() -> { async.execute(); }, "execution thread 1").start();
-		new Thread(() -> { async.execute(); }, "execution thread 2").start();
-		new Thread(() -> { async.execute(); }, "execution thread 3").start();
+		new Thread(() -> { try{async.execute();}catch(Throwable e) {} }, "execution thread 1").start();
+		new Thread(() -> { try{async.execute();}catch(Throwable e) {} }, "execution thread 2").start();
+		new Thread(() -> { try{async.execute();}catch(Throwable e) {} }, "execution thread 3").start();
 		
 		// awaiting promise instead of calling them. unlike javascript, java can block.
 		new Thread(() -> { try { System.out.println(slowPromise.await() + "from steve"); } catch(Throwable e) {} }, "steve").start();
@@ -288,29 +293,16 @@ public class Driver {
 			}
 			catch (InterruptedException e) {}
 		}, "number giver");
-		numberGiver.start();
 		
-		final var numberGetter = async.def((await) -> {
-			try {
-				for(;;) {
-					final var numPromise = numberGiver.run();
-					
-//					numPromise.then(n -> {return n + 1;}).then(n -> {return n / 0;}).then(n -> {System.out.println(n);}).onCatch(e -> {System.err.println(e);});
-//					numPromise.then(n -> {System.out.println(n / 2);});
-					
-					final var num = await.apply(numPromise);
-					
+		final var numberGetter = async.defRunnable((await) -> {
+			var run = new RefBoolean(true);
+			while(run.get()) {
+				await.apply(numberGiver.run()).ifDefined(num -> {
 					System.out.println(num);
-				}
-			}
-			catch (UncheckedWrapper uw) {
-				try { throw uw.getOriginal(); }
-				catch (CoThreadCompleteException ctce){
-					System.out.println("CoThread is out of numbers");
-				}
-				catch (Throwable e) {
-					throw uw;
-				}
+				}).ifNotDefined(() -> {
+					System.out.println("number giver out of numbers.");
+					run.set(false);
+				});
 			}
 		});
 		

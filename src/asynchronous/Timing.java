@@ -2,37 +2,47 @@ package asynchronous;
 
 import java.util.function.*;
 
+import asynchronous.futures.Promise;
+
 public class Timing {
-	public static Thread setTimeout(Runnable func, long sleepForMilliseconds, int sleepForNanoseconds) {
-		final var thread =  new Thread(() -> {
+	public static Promise<Void> setTimeout(Runnable func, long milliseconds, int nanoseconds){
+		final var promiseAndThread = Promise.<Void>threadInit(settle -> {
 			try {
-				Thread.sleep(sleepForMilliseconds, sleepForNanoseconds);
+				Thread.sleep(milliseconds, nanoseconds);
 				func.run();
-			} catch(InterruptedException e) {}
+				settle.resolve();
+			}
+			catch(Throwable e) {
+				settle.reject(e);
+			}
 		});
 		
-		thread.start();
-		
-		return thread;
+		return promiseAndThread.promise;
 	}
 	
-	public static <T> Promise<T> setTimeout(Supplier<T> func, long sleepForMilliseconds, int sleepForNanoseconds) {
-		return Promise.threadInit((resolve, reject) -> {
+	public static <T> Promise<T> setTimeout(Supplier<T> func, long milliseconds, int nanoseconds){
+		final var promiseAndThread = Promise.<T>threadInit(settle -> {
 			try {
-				Thread.sleep(sleepForMilliseconds, sleepForNanoseconds);
-				resolve.apply(func.get());
+				Thread.sleep(milliseconds, nanoseconds);
+				settle.resolve(func.get());
 			}
-			catch(Exception e) {
-				reject.apply(e);
+			catch(Throwable e) {
+				settle.reject(e);
 			}
 		});
+		
+		return promiseAndThread.promise;
 	}
 	
-	public static void setTimeout(Runnable func, long sleepForMilliseconds) {
-		setTimeout(func, sleepForMilliseconds, 0);
+	public static Promise<Void> setTimeout(Runnable func, long sleepForMilliseconds) {
+		return setTimeout(func, sleepForMilliseconds, 0);
 	}
 	
 	public static <T> Promise<T> setTimeout(Supplier<T> func, long sleepForMilliseconds) {
 		return setTimeout(func, sleepForMilliseconds, 0);
+	}
+
+	public static Promise<Void> setTimeout(long sleepForMilliseconds) {
+		return setTimeout(() -> null, sleepForMilliseconds, 0);
 	}
 }

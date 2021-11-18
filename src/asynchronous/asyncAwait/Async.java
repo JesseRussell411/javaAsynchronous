@@ -1,32 +1,18 @@
 package asynchronous.asyncAwait;
 
 import java.util.Queue;
-import java.util.concurrent.ConcurrentLinkedQueue;
-import java.util.concurrent.Future;
-import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.*;
+import java.util.concurrent.atomic.*;
 import java.util.function.*;
 
 import asynchronous.CoThread;
-import asynchronous.Deferred;
-import asynchronous.Promise;
-import asynchronous.Timing;
-import asynchronous.UncheckedInterruptedException;
+import asynchronous.*;
+import asynchronous.futures.Deferred;
+import asynchronous.futures.Promise;
+import asynchronous.futures.exceptions.FutureCancellationException;
 import exceptionsPlus.UncheckedWrapper;
-import functionPlus.HeptaConsumer;
-import functionPlus.HeptaFunction;
-import functionPlus.HexaConsumer;
-import functionPlus.HexaFunction;
-import functionPlus.NonaConsumer;
-import functionPlus.NonaFunction;
-import functionPlus.OctoConsumer;
-import functionPlus.OctoFunction;
-import functionPlus.PentaConsumer;
-import functionPlus.PentaFunction;
-import functionPlus.QuadConsumer;
-import functionPlus.QuadFunction;
-import functionPlus.TriConsumer;
-import functionPlus.TriFunction;
+import functionPlus.*;
+import message.*;
 
 /**
  * Asynchronous function used for asynchronous programming. Call Async.execute at the end of the main method to run called Async functions.
@@ -54,7 +40,7 @@ public class Async {
 	 * Notify Async class that an awaited promise has completed
 	 * @param inst The instance awaiting the promise
 	 */
-	private void asyncAwaitCompleteNofify(AsyncSupplier<?>.CalledInstance inst) {
+	private void asyncAwaitCompleteNotify(AsyncSupplier<?>.CalledInstance inst) {
 		synchronized(executeWaitLock) {
 			executionQueue.add(inst);
 			executeWaitLock.notify();
@@ -75,87 +61,136 @@ public class Async {
 	 * Runs all Async instances in the execution queue.
 	 * @throws InterruptedException
 	 */
-	public void execute() throws UncheckedInterruptedException{
+	public void execute(VolitileMessenger<Integer> maxThreadCount, VolitileMessenger<Boolean> listen, VolitileMessenger<Boolean> stop) throws InterruptedException {
+		maxThreadCount.onChange(v -> {
+			synchronized(executeWaitLock) {
+				executeWaitLock.notifyAll();
+			}
+		});
+		stop.onChange(v -> {
+			if (v == false)
+				return;
+			
+			synchronized(executeWaitLock) {
+				executeWaitLock.notifyAll();
+			}
+		});
+		listen.onChange(v -> {	
+			synchronized(executeWaitLock) {
+				executeWaitLock.notifyAll();
+			}
+		});
+		
+		final var threadCount = new AtomicInteger();
+		
 		// execution loop
 		do {
 			AsyncSupplier<?>.CalledInstance instance;
-			while((instance = executionQueue.poll()) != null) {
-				instance.execute();
-			}
-			
-			// execution queue is empty, as long as there's still instances running:
-			// Wait for the execution queue to be enqueued with something to run
-			// or for there to be no running instances.
-			synchronized(executeWaitLock) {
-				try {
-					executeWaitLock.notify();
-					while(runningInstanceCount.get() > 0 && executionQueue.isEmpty()) {
-						executeWaitLock.wait();
+			while(!stop.get() && threadCount.get() < maxThreadCount.get() && (instance = executionQueue.poll()) != null) {
+				threadCount.incrementAndGet();
+				
+				// execute the instance
+				// the returned promise will tell us when the instance yields again or if it completes or throws an error.
+				instance.execute().onSettledRun(() -> {
+					threadCount.decrementAndGet();
+					synchronized(executeWaitLock) {
+						executeWaitLock.notifyAll();
 					}
-				}
-				catch(InterruptedException ie) {
-					throw new UncheckedInterruptedException(ie);
-				}
+				});
 			}
 			
-			// wait over, if there are no running instances and the executionQueue is empty: 
-			// break and finish execution.
-		} while(!(runningInstanceCount.get() == 0 && executionQueue.isEmpty()));
-	}
-	
-	public void execute(AtomicBoolean untilTrue) throws UncheckedInterruptedException {
-		boolean firstLoop = true;
-		try {
-			while(!untilTrue.get()) {
-				if (!firstLoop) {
-					Thread.sleep(1);
+			synchronized(executeWaitLock) {
+				executeWaitLock.notifyAll();
+				while(!stop.get()) {
+					// if the max thread count is zero, pause.
+					if (maxThreadCount.get() != 0) {
+						// exit conditions
+						if (!listen.get() && executionQueue.isEmpty() && runningInstanceCount.get() == 0) break;
+						// resume conditions
+						if (!executionQueue.isEmpty()) break;						
+					}
+					
+					executeWaitLock.wait();
 				}
-				
-				execute();
-				
-				firstLoop = false;
 			}
-		}
-		catch(InterruptedException ie) {
-			throw new UncheckedInterruptedException(ie);
-		}
+		} while(!stop.get() && !(!listen.get() && executionQueue.isEmpty() && runningInstanceCount.get() == 0));
+	}
+	
+	public void execute(VolitileMessenger<Boolean> listen, VolitileMessenger<Boolean> stop) throws InterruptedException{
+		execute(new VolitileMessenger<Integer>(1), listen, stop);
+	}
+	
+	public void execute(VolitileMessenger<Integer> maxThreadCount) throws InterruptedException{
+		execute(maxThreadCount, new VolitileMessenger<Boolean>(false), new VolitileMessenger<Boolean>(false));
+	}
+	
+	public void execute(int maxThreadCount, boolean listen) throws InterruptedException{
+		execute(new VolitileMessenger<Integer>(maxThreadCount), new VolitileMessenger<Boolean>(listen), new VolitileMessenger<Boolean>(false));
+	}
+	
+	public void execute(int maxThreadCount) throws InterruptedException{
+		execute(new VolitileMessenger<Integer>(maxThreadCount), new VolitileMessenger<Boolean>(false), new VolitileMessenger<Boolean>(false));
+	}
+	
+	public void execute(int maxThreadCount, boolean listen, VolitileMessenger<Boolean> stop) throws InterruptedException{
+		execute(new VolitileMessenger<Integer>(maxThreadCount), new VolitileMessenger<Boolean>(listen), stop);
+	}
+	
+	public void execute(int maxThreadCount, VolitileMessenger<Boolean> stop) throws InterruptedException{
+		execute(new VolitileMessenger<Integer>(maxThreadCount), new VolitileMessenger<Boolean>(false), stop);
+	}
+	
+	public void execute() throws InterruptedException{
+		execute(new VolitileMessenger<Integer>(1), new VolitileMessenger<Boolean>(false), new VolitileMessenger<Boolean>(false));
 	}
 	
 	
-	
-	// Await functional class for awaiting promises in an Async functional class.
+	// Await functional class for awaiting futures in an Async functional class.
 	public class Await{
-		private final Consumer<Promise<?>> yield;
+		private final CoThread<Promise<?>>.Yield yield;
 		
 		// can't be instantiated by the user. Only Async and itself (but only Async should)
-		private Await(Consumer<Promise<?>> yield) {
+		private Await(CoThread<Promise<?>>.Yield yield) {
 			this.yield = yield;
 		}
 		
 		/**
-		 * Awaits the given promise, returning it's result when it's resolved.
-		 * @param <T> The type of the promise.
-		 * @param promise
-		 * @return result of promise
+		 * Awaits the given future, returning it's result when it's resolved.
+		 * @param <T> The type of the future.
+		 * @param future The future to await.
+		 * @param onCancel called if the future is canceled. if null: throws a PromiseCancellationException if the future is canceled.
+		 * @return result of future or null if the future is null.
 		 * @throws UncheckedWrapper Wrapper around all Exceptions checked and un-checked. Will contain whatever exception was thrown.
-		 * This is the only exception thrown by await.apply.
+		 * This is the only exception thrown by await.apply. PromiseCancellationException: if the future is canceled and onCancel was null.
 		 */
-		public <T> T apply(Promise<T> promise) throws UncheckedWrapper {
+		public <T> T apply(Future<T> future, Supplier<T> onCancel) throws UncheckedWrapper, FutureCancellationException {
+			if (future == null)
+				return null;
+			
+			final var promise = Promise.fromFuture(future);
+			
 			try {
 				// yield to Async.execute. wait for the promise to complete. Async.execute will take care of that.
 				yield.accept(promise);
 				
 				// at this point yield has stopped blocking which should mean that the promise is complete.
-				if (promise.isRejected()) {
-					throw promise.getError();
-				}
-				else if (promise.isFulfilled()) {
+				if (promise.isFulfilled()) {
 					return promise.getResult();
 				}
+				else if (promise.isRejected()) {
+					throw promise.getError();
+				}
+				else if (promise.isCanceled()) {
+					if (onCancel == null)
+						throw new FutureCancellationException(future);
+					else
+						return onCancel.get();
+				}
+				else if (promise.isSettled()) {
+					throw new IllegalStateException("The promise given to Async.Await.apply has been settled but is not fulfilled, rejected, or canceled.");
+				}
 				else {
-					// if this block runs, something is wrong. Most likely with Async.execute().
-					System.err.println("There is something wrong with Async.execute (most likely). After yielding in Await.apply, the promise is still not complete.");
-					return null;
+					throw new IllegalStateException("The promise given to Async.Await.apply has not been settled after yielding.");
 				}
 			}
 			catch(Throwable e) {
@@ -163,21 +198,8 @@ public class Async {
 			}
 		}
 		
-		/**
-		 * Awaits the given future, returning it's result when it's resolved.
-		 * @param <T> The type of the promise.
-		 * @param promise
-		 * @return result of promise
-		 * @throws UncheckedWrapper Wrapper around all Exceptions checked and un-checked. Will contain whatever exception was thrown.
-		 * This is the only exception thrown by await.apply.
-		 */
-		public <T> T apply(Future<T> future) throws UncheckedWrapper{
-			try {
-				return apply(Promise.fromFuture(future));
-			}
-			catch(Exception e) {
-				throw UncheckedWrapper.uncheckify(e);
-			}
+		public <T> T apply(Future<T> future) throws UncheckedWrapper {
+			return apply(future, null);
 		}
 		
 		/**
@@ -185,26 +207,26 @@ public class Async {
 		 * @return whatever was returned by the function;
 		 */
 		public <T> T func(Supplier<T> func) {
-			return apply(Promise.asyncGet(func));
+			return apply(Promise.asyncGet(func).promise);
 		}
 		
 		/**
 		 * Asynchronously waits for the given function to run in a separate thread.
 		 * */
 		public void func(Runnable func) {
-			apply(Promise.asyncRun(func));
+			apply(Promise.asyncRun(func).promise);
 		}
 		
 		// utils:
 		/**
-		 * Non-blocking sleep function. May sleep for longer than the specified time while it waits it's turn to execute.
+		 * Asynchronous sleep function. May sleep for longer than the specified time while the instance waits its turn to execute again.
 		 */
 		public void sleep(long milliseconds, int nanoseconds) {
 			apply(Timing.setTimeout(() -> null, milliseconds, nanoseconds));
 		}
 		
 		/**
-		 * Non-blocking sleep function. May sleep for longer than the specified time while it waits it's turn to execute.
+		 * Asynchronous sleep function. May sleep for longer than the specified time while the instance waits its turn to execute again.
 		 */
 		public void sleep(long milliseconds) {
 			apply(Timing.setTimeout(() -> null, milliseconds));
@@ -225,16 +247,18 @@ public class Async {
 		private final Function<Await, T> func;
 		private final String name;
 		
-		
 		public String getName() { return name; }
 		
 		public AsyncSupplier(Function<Await, T> func) {
-			this.func = func;
-			this.name = null;
+			this(func, null);
 		}
+		
 		public AsyncSupplier(Function<Await, T> func, String name) {
 			this.func = func;
-			this.name = name;
+			if (name == null)
+				this.name = "async";
+			else
+				this.name = name;
 		}
 		
 		public Promise<T> get(){
@@ -250,51 +274,8 @@ public class Async {
 		 */
 		private class CalledInstance {
 			private final CoThread<Promise<?>> coThread;
-			private T result = null;
-			private Deferred<T> deferred;
-			
-			private void resolve(T result) {
-				deferred.resolve(result);
-			}
-			private void reject(Exception exception) {
-				deferred.reject(exception);
-			}
-			public T getResult() { return result; }
-			public void execute() throws UncheckedInterruptedException {
-				boolean coThreadYielded = false;
-				Exception exception = null;
-				try {
-					coThreadYielded = coThread.await();
-				}
-				catch(Exception e) {
-					exception = e;
-				}
-				
-				// was it an error, yield, or completion?
-				if (exception != null) {
-					//error:
-					reject(exception);
-				}
-				else if (coThreadYielded) {
-					// yield:
-					if (coThread.getResult() == null) {
-						throw new NullPointerException("Promise given to await.accept was null.");
-					}
-					
-					// awaitResult contains a promise returned by yield
-					// This promise needs to add the instance back onto the execution queue when it completes.
-					coThread.getResult().onSettled(() -> {
-						asyncAwaitCompleteNofify(this);
-					});
-				}
-				else {
-					// completion:
-					
-					// The instance has run to the end of it's function. It has completed execution.
-					// it should now contain the result of the execution in it's "result" field.
-					resolve(result);
-				}
-			}
+			private volatile T result = null;
+			private volatile Deferred<T> deferred;
 			
 			CalledInstance() {
 				coThread = new CoThread<>(yield -> {
@@ -302,21 +283,38 @@ public class Async {
 				}, name);
 			}
 			
-			Promise<T> start(){
-				// start coThread
-				coThread.start();
-				
+			private synchronized Promise<T> start(){				
 				// make a new promise and extract resolve and reject methods
 				deferred = new Deferred<T>();
 				
 				// add callback to promise that decrements running instance count when the call completes.
-				deferred.promise.onSettledRun(() -> asyncCompleteNotify());
+				deferred.promise().onSettledRun(() -> asyncCompleteNotify());
 				
 				// Notify Async class that this instance has started.
 				asyncStartNotify(this);
 				
 				// This promise will resolve when the instance completes successfully, and reject when an error occurs
-				return deferred.promise;
+				return deferred.promise();
+			}
+			
+			private synchronized Promise<Result<Promise<?>>> execute() {
+				return coThread.run().thenAccept(result -> {
+					if (result.undefined) {
+						coThread.close();
+						deferred.settle().resolve(this.result);
+					} else {
+						result.value.onSettledRun(() -> 
+							asyncAwaitCompleteNotify(this));
+					}
+				}, error ->{
+					// threw an error:
+					deferred.settle().reject(error);
+					//
+				}, () -> {
+					// was canceled for some reason:
+					deferred.settle().cancel();
+					//
+				});
 			}
 		}
 	}
@@ -587,15 +585,15 @@ public class Async {
 			return async.getName();
 		}
 	}
-	public class FuncHexaConsumer<T1, T2, T3, T4, T5, T6> implements HexaFunction<T1, T2, T3, T4, T5, T6, Promise<Void>>{
+	public class AsyncHexaConsumer<T1, T2, T3, T4, T5, T6> implements HexaFunction<T1, T2, T3, T4, T5, T6, Promise<Void>>{
 		private final AsyncHexaFunction<T1, T2, T3, T4, T5, T6, Void> async;
 		
-		public FuncHexaConsumer(HeptaConsumer<Await, T1, T2, T3, T4, T5, T6> func, String name) {
+		public AsyncHexaConsumer(HeptaConsumer<Await, T1, T2, T3, T4, T5, T6> func, String name) {
 			async = new AsyncHexaFunction<T1, T2, T3, T4, T5, T6, Void>(
 					(await, t1, t2, t3, t4, t5, t6) -> { func.accept(await, t1, t2, t3, t4, t5, t6); return null; }, name);
 		}
 		
-		public FuncHexaConsumer(HeptaConsumer<Await, T1, T2, T3, T4, T5, T6> func) {
+		public AsyncHexaConsumer(HeptaConsumer<Await, T1, T2, T3, T4, T5, T6> func) {
 			this(func, null);
 		}
 		
@@ -708,7 +706,6 @@ public class Async {
 	// o------o
 	// | def: |
 	// o------o
-	
 	public <R> AsyncSupplier<R> def(Function<Await, R> func){
 		return new AsyncSupplier<>(func);
 	}
@@ -748,8 +745,8 @@ public class Async {
 	public <T1, T2, T3, T4, T5, T6, R> AsyncHexaFunction<T1, T2, T3, T4, T5, T6, R> def(HeptaFunction<Await, T1, T2, T3, T4, T5, T6, R> func){
 		return new AsyncHexaFunction<>(func);
 	}
-	public <T1, T2, T3, T4, T5, T6> FuncHexaConsumer<T1, T2, T3, T4, T5, T6> def(HeptaConsumer<Await, T1, T2, T3, T4, T5, T6> func){
-		return new FuncHexaConsumer<>(func);
+	public <T1, T2, T3, T4, T5, T6> AsyncHexaConsumer<T1, T2, T3, T4, T5, T6> def(HeptaConsumer<Await, T1, T2, T3, T4, T5, T6> func){
+		return new AsyncHexaConsumer<>(func);
 	}
 	public <T1, T2, T3, T4, T5, T6, T7, R> AsyncHeptaFunction<T1, T2, T3, T4, T5, T6, T7, R> def(OctoFunction<Await, T1, T2, T3, T4, T5, T6, T7, R> func){
 		return new AsyncHeptaFunction<>(func);
@@ -804,8 +801,8 @@ public class Async {
 	public <T1, T2, T3, T4, T5, T6, R> AsyncHexaFunction<T1, T2, T3, T4, T5, T6, R> def(String name, HeptaFunction<Await, T1, T2, T3, T4, T5, T6, R> func){
 		return new AsyncHexaFunction<>(func, name);
 	}
-	public <T1, T2, T3, T4, T5, T6> FuncHexaConsumer<T1, T2, T3, T4, T5, T6> def(String name, HeptaConsumer<Await, T1, T2, T3, T4, T5, T6> func){
-		return new FuncHexaConsumer<>(func, name);
+	public <T1, T2, T3, T4, T5, T6> AsyncHexaConsumer<T1, T2, T3, T4, T5, T6> def(String name, HeptaConsumer<Await, T1, T2, T3, T4, T5, T6> func){
+		return new AsyncHexaConsumer<>(func, name);
 	}
 	public <T1, T2, T3, T4, T5, T6, T7, R> AsyncHeptaFunction<T1, T2, T3, T4, T5, T6, T7, R> def(String name, OctoFunction<Await, T1, T2, T3, T4, T5, T6, T7, R> func){
 		return new AsyncHeptaFunction<>(func, name);
@@ -818,6 +815,14 @@ public class Async {
 	}
 	public <T1, T2, T3, T4, T5, T6, T7, T8> AsyncOctoConsumer<T1, T2, T3, T4, T5, T6, T7, T8> def(String name, NonaConsumer<Await, T1, T2, T3, T4, T5, T6, T7, T8> func){
 		return new AsyncOctoConsumer<>(func, name);
+	}
+	
+	// special:
+	public AsyncRunnable defRunnable(Consumer<Await> func) {
+		return new AsyncRunnable(func);
+	}
+	public AsyncRunnable defRunnable(String name, Consumer<Await> func) {
+		return new AsyncRunnable(func, name);
 	}
 	// this took forever to type
 }
