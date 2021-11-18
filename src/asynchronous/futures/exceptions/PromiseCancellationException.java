@@ -1,4 +1,6 @@
-package asynchronous.futures;
+package asynchronous.futures.exceptions;
+
+import asynchronous.futures.Promise;
 
 import java.util.concurrent.CancellationException;
 

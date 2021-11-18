@@ -9,7 +9,7 @@ import asynchronous.CoThread;
 import asynchronous.*;
 import asynchronous.futures.Deferred;
 import asynchronous.futures.Promise;
-import asynchronous.futures.FutureCancellationException;
+import asynchronous.futures.exceptions.FutureCancellationException;
 import exceptionsPlus.UncheckedWrapper;
 import functionPlus.*;
 import message.*;
