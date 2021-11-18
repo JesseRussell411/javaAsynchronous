@@ -22,7 +22,7 @@ public class Promise<T> implements Future<T>{
 	
 	Promise(){}
 	
-	/** Whether the Promise has been fulfilled or rejected */
+	/** Whether the Promise has been fulfilled, rejected, or canceled */
 	public boolean isSettled() { return fulfilled || rejected || canceled; }
 	/** Whether the Promise is waiting to be settled */
 	public boolean isPending() { return !isSettled(); }
@@ -433,6 +433,7 @@ public class Promise<T> implements Future<T>{
 		return addCallback(new SyncCallback<R>(t -> settler.get(), e -> settler.get(), settler));
 	}
 	
+	
 	public Promise<Void> onSettledRun(Runnable settler){
 		return onSettledGet(() -> {
 			settler.run();
@@ -444,6 +445,67 @@ public class Promise<T> implements Future<T>{
 	public <R> Promise<R> asyncOnSettledGet(Supplier<Promise<R>> settler){
 		return addCallback(new AsyncCallback<R>(t -> settler.get(), e -> settler.get(), settler));
 	}
+	
+	// on unfulfilled
+	public <R> Promise<R> onUnFulfilledGet(Supplier<R> onUnFulfilled){
+		return addCallback(new SyncCallback<R>(null, e -> onUnFulfilled.get(), onUnFulfilled));
+	}
+	
+	public Promise<Void> onUnFulfilledRun(Runnable onUnFulfilled){
+		return addCallback(new SyncCallback<Void>(null, e -> {
+			onUnFulfilled.run();
+			return null;
+		}, () -> {
+			onUnFulfilled.run();
+			return null;
+		}));
+	}
+	
+	// async on unfulfilled
+	public <R> Promise<R> asyncOnUnFulfilledGet(Supplier<Promise<R>> onUnFulfilled){
+		return addCallback(new AsyncCallback<R>(null, e -> onUnFulfilled.get(), onUnFulfilled));
+	}
+	
+	// on no error
+	public <R> Promise<R> onNoErrorGet(Supplier<R> onNoError){
+		return addCallback(new SyncCallback<R>(r -> onNoError.get(), null, onNoError));
+	}
+	
+	public Promise<Void> onNoErrorRun(Runnable onNoError){
+		return addCallback(new SyncCallback<Void>(r -> {
+			onNoError.run();
+			return null;
+		}, null, () -> {
+			onNoError.run();
+			return null;
+		}));
+	}
+	
+	// async on no error
+	public <R> Promise<R> asyncOnNoErrorGet(Supplier<Promise<R>> onNoError){
+		return addCallback(new AsyncCallback<R>(r -> onNoError.get(), null, () -> onNoError.get()));
+	}
+	
+	// on no cancel
+	public <R> Promise<R> onNoCancelGet(Supplier<R> onNoCancel){
+		return addCallback(new SyncCallback<R>(r -> onNoCancel.get(), e -> onNoCancel.get(), null));
+	}
+	
+	public Promise<Void> onNoCancelRun(Runnable onNoCancel){
+		return addCallback(new SyncCallback<Void>(r -> {
+			onNoCancel.run();
+			return null;
+		}, e -> {
+			onNoCancel.run();
+			return null;
+		}, null));
+	}
+	
+	// async on no cancel
+	public <R> Promise<R> asyncOnNoCancelGet(Supplier<Promise<R>> onNoCancel){
+		return addCallback(new AsyncCallback<R>(r -> onNoCancel.get(), e -> onNoCancel.get(), null));
+	}
+	
 	
 	// auto-FunctionType versions:
 	// then with error and cancel
@@ -487,6 +549,23 @@ public class Promise<T> implements Future<T>{
 	public <R> Promise<R> onSettled(Supplier<R> settler){return onSettledGet(settler);}
 	public Promise<Void>  onSettled(Runnable settler){return onSettledRun(settler);}
 	public <R> Promise<R> asyncOnSettled(Supplier<Promise<R>> settler){return asyncOnSettledGet(settler);}
+	
+	// on unfulfilled
+	public <R> Promise<R> onUnFulfilled(Supplier<R> onUnFulfilled){return onUnFulfilledGet(onUnFulfilled);}
+	public Promise<Void> onUnFulfilled(Runnable onUnFulfilled){return onUnFulfilledRun(onUnFulfilled);}
+	public <R> Promise<R> asyncOnUnFulfilled(Supplier<Promise<R>> onUnFulfilled){return asyncOnUnFulfilledGet(onUnFulfilled);}
+	
+	// on no error
+	public <R> Promise<R> onNoError(Supplier<R> onNoError){return onNoErrorGet(onNoError);}
+	public Promise<Void> onNoError(Runnable onNoError){return onNoErrorRun(onNoError);}
+	public <R> Promise<R> asyncOnNoError(Supplier<Promise<R>> onNoError){return asyncOnNoError(onNoError);}
+	
+	// on no cancel
+	public <R> Promise<R> onNoCancel(Supplier<R> onNoCancel){return onNoCancelGet(onNoCancel);}
+	public Promise<Void> onNoCancel(Runnable onNoCancel){return onNoCancelRun(onNoCancel);}
+	
+	// async on no cancel
+	public <R> Promise<R> asyncOnNoCancel(Supplier<Promise<R>> onNoCancel){return asyncOnNoCancelGet(onNoCancel);}
 	
 	
 	// blocking wait
