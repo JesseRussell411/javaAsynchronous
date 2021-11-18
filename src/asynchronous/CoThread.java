@@ -18,7 +18,7 @@ import functionPlus.*;
  */
 public class CoThread<R> implements AutoCloseable{
 	private final Thread thread;
-	private final Yield yield = new Yield();
+	private final Yield yields = new Yield();
 	private volatile Deferred<Result<R>> deferred;
 	
 	// flags:
@@ -31,7 +31,7 @@ public class CoThread<R> implements AutoCloseable{
 	public boolean isRunning() { return running; }
 	/** Whether the run method has been called at least once. */
 	public boolean isStarted() { return started; }
-	/** Whether the CoThread has thrown and error, or finished execution. In either case, it will no longer yield any more values, or even run at all. */
+	/** Whether the CoThread has thrown an error, or finished execution. In either case, it will no longer yield any more values, or even run at all. */
 	public boolean isDead() { return dead; }
 	
 	public CoThread(Consumer<Yield> func, String name) {
@@ -43,9 +43,9 @@ public class CoThread<R> implements AutoCloseable{
 	
 	private Runnable makeBody(Consumer<Yield> func) {
 		return () -> {
-			synchronized(yield) {
+			synchronized(yields) {
 				try {
-					func.accept(yield);
+					func.accept(yields);
 				}
 				catch(Throwable e) {
 					deferred.settle().reject(e);
@@ -69,7 +69,7 @@ public class CoThread<R> implements AutoCloseable{
 		if (running || dead)
 			return deferred.promise();
 		
-		synchronized(yield) {
+		synchronized(yields) {
 			if (running || dead) {
 				return deferred.promise();
 			}
@@ -82,7 +82,7 @@ public class CoThread<R> implements AutoCloseable{
 					started = true;
 				}
 				
-				yield.notifyAll();
+				yields.notifyAll();
 				
 				return deferred.promise();
 			}

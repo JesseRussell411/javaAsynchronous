@@ -284,11 +284,11 @@ public class Driver {
 		
 		
 		//CoThread run test
-		CoThread<Integer> numberGiver = new CoThread<>((yield) -> {
+		CoThread<Integer> numberGiver = new CoThread<>((yields) -> {
 			try {
 				for(int i = 1; i <= 5; ++i) {
 					Thread.sleep(500);
-					yield.accept(i);
+					yields.accept(i);
 				}
 			}
 			catch (InterruptedException e) {}

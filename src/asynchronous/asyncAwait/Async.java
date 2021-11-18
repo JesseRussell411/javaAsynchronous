@@ -147,11 +147,11 @@ public class Async {
 	
 	// Await functional class for awaiting futures in an Async functional class.
 	public class Await{
-		private final CoThread<Promise<?>>.Yield yield;
+		private final CoThread<Promise<?>>.Yield yields;
 		
 		// can't be instantiated by the user. Only Async and itself (but only Async should)
-		private Await(CoThread<Promise<?>>.Yield yield) {
-			this.yield = yield;
+		private Await(CoThread<Promise<?>>.Yield yields) {
+			this.yields = yields;
 		}
 		
 		/**
@@ -170,10 +170,10 @@ public class Async {
 			final var promise = Promise.fromFuture(future);
 			
 			try {
-				// yield to Async.execute. wait for the promise to complete. Async.execute will take care of that.
-				yield.accept(promise);
+				// yields to Async.execute. wait for the promise to complete. Async.execute will take care of that.
+				yields.accept(promise);
 				
-				// at this point yield has stopped blocking which should mean that the promise is complete.
+				// at this point yields has stopped blocking which should mean that the promise is complete.
 				if (promise.isFulfilled()) {
 					return promise.getResult();
 				}
@@ -278,8 +278,8 @@ public class Async {
 			private volatile Deferred<T> deferred;
 			
 			CalledInstance() {
-				coThread = new CoThread<>(yield -> {
-					result = func.apply(new Await(yield));
+				coThread = new CoThread<>(yields -> {
+					result = func.apply(new Await(yields));
 				}, name);
 			}
 			
