@@ -1,4 +1,4 @@
-package asynchronous;
+package asynchronous.exceptions;
 
 /**
  * Signals that a CoThread has completed.

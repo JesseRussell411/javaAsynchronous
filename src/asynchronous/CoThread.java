@@ -6,11 +6,11 @@ import functionPlus.*;
 
 /**
  * A thread that acts like a coroutine. Like a normal Thread, this class's
- * constructor takes a functional class to run concurrently except this class
- * supplies that functional class with an instance of a class called Yield.
- * Yield has a method called accept which takes a value of type T and then
- * blocks until the CoThread is signaled to run again by its "run" method. The
- * run method returns a promise which is settled by the CoThread yielding,
+ * constructor takes a functional class to run concurrently; howerver, this
+ * class supplies that functional class with an instance of a class called
+ * Yield. Yield has a method called accept which takes a value of type T and
+ * then blocks until the CoThread is signaled to run again by its "run" method.
+ * The run method returns a promise which is settled by the CoThread yielding,
  * dying (completing execution), or throwing an error. 
  * @author Jesse Russell
  *
@@ -70,22 +70,21 @@ public class CoThread<R> implements AutoCloseable{
 			return deferred.promise();
 		
 		synchronized(yields) {
-			if (running || dead) {
+			if (running || dead)
 				return deferred.promise();
+
+
+			deferred = new Deferred<Result<R>>();
+			running = true;
+
+			if (!started) {
+				thread.start();
+				started = true;
 			}
-			else {
-				deferred = new Deferred<Result<R>>();
-				running = true;
-				
-				if (!started) {
-					thread.start();
-					started = true;
-				}
-				
-				yields.notifyAll();
-				
-				return deferred.promise();
-			}
+
+			yields.notifyAll();
+
+			return deferred.promise();
 		}
 	}
 	
@@ -102,7 +101,8 @@ public class CoThread<R> implements AutoCloseable{
 		public synchronized void accept(R value) throws InterruptedException {
 			running = false;
 			deferred.settle().resolve(new Result<R>(value));
-			
+
+			notifyAll();
 			while(!running) {
 				wait();
 			}

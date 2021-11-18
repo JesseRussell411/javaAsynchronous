@@ -1,4 +1,4 @@
-package asynchronous;
+package asynchronous.exceptions;
 
 import java.util.concurrent.CancellationException;
 
