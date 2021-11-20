@@ -297,7 +297,7 @@ public class Driver {
 		final var numberGetter = async.defRunnable((await) -> {
 			var run = new RefBoolean(true);
 			while(run.get()) {
-				await.apply(numberGiver.run()).ifDefined(num -> {
+				await.getResult(numberGiver.run()).ifDefined(num -> {
 					System.out.println(num);
 				}).ifNotDefined(() -> {
 					System.out.println("number giver out of numbers.");

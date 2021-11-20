@@ -162,14 +162,15 @@ public class Async {
          *
          * @param <T>      The type of the future.
          * @param future   The future to await.
-         * @param onCancel called if the future is cancelled. if null: throws a PromiseCancellationException if the future is cancelled.
-         * @return result of future or null if the future is null.
-         * @throws UncheckedWrapper Wrapper around all Exceptions checked and un-checked. Will contain whatever exception was thrown.
-         *                          This is the only exception thrown by await.apply. PromiseCancellationException: if the future is cancelled and onCancel was null.
+         * @return A Result representing the result of future or null if the future is null. The Result is undefined if
+         * the future was canceled, or defined with the result of the future if it was not.
+         * @throws UncheckedWrapper Wrapper around all Exceptions checked and un-checked. Will contain whatever
+         * exception was thrown.
          */
-        public <T> T apply(Future<T> future, Supplier<T> onCancel) throws UncheckedWrapper, FutureCancellationException {
-            if (future == null)
-                return null;
+        public <T> Result<T> getResult(Future<T> future) throws UncheckedWrapper {
+            if (future == null) {
+                return new Result<>(null);
+            }
 
             final var promise = Promise.fromFuture(future);
 
@@ -178,22 +179,43 @@ public class Async {
                 yields.accept(promise);
 
                 // at this point yields has stopped blocking which should mean that the promise is complete.
-                if (promise.isFulfilled()) {
-                    return promise.getResult();
-                } else if (promise.isRejected()) {
-                    throw promise.getError();
-                } else if (promise.isCancelled()) {
-                    if (onCancel == null)
-                        throw new FutureCancellationException(future);
-                    else
-                        return onCancel.get();
-                } else if (promise.isSettled()) {
-                    throw new IllegalStateException("The promise given to Async.Await.apply has been settled but is not fulfilled, rejected, or cancelled.");
+                if (promise.isSettled()) {
+                    if (promise.isFulfilled()) {
+                        return new Result<>(promise.getResult());
+                    } else if (promise.isRejected()) {
+                        throw promise.getError();
+                    } else if (promise.isCancelled()) {
+                        return new Result<>();
+                    } else{
+                        throw new IllegalStateException("The promise given to Async.Await.apply has been settled but is not fulfilled, rejected, or cancelled.");
+                    }
                 } else {
                     throw new IllegalStateException("The promise given to Async.Await.apply has not been settled after yielding.");
                 }
             } catch (Throwable e) {
                 throw UncheckedWrapper.uncheckify(e);
+            }
+        }
+
+        /**
+         * Awaits the given future, returning it's result when it's resolved.
+         *
+         * @param <T>      The type of the future.
+         * @param future   The future to await.
+         * @param onCancel called if the future is cancelled. if null: throws a PromiseCancellationException if the future is cancelled.
+         * @return result of future or null if the future is null.
+         * @throws UncheckedWrapper Wrapper around all Exceptions checked and un-checked. Will contain whatever exception was thrown.
+         *                          This is the only exception thrown by await.apply. PromiseCancellationException: if the future is cancelled and onCancel was null.
+         */
+        public <T> T apply(Future<T> future, Supplier<T> onCancel) throws UncheckedWrapper, FutureCancellationException {
+            final var result = getResult(future);
+            if (result.undefined){
+                if (onCancel != null)
+                    return onCancel.get();
+                else
+                    throw new FutureCancellationException(future);
+            } else {
+                return result.value;
             }
         }
 
@@ -301,23 +323,15 @@ public class Async {
                 return deferred.promise();
             }
 
-            private synchronized Promise<Result<Promise<?>>> execute() {
+            private synchronized Promise<Promise<?>> execute() {
                 return coThread.run().thenAccept(result -> {
-                    if (result.undefined) {
-                        coThread.close();
-                        deferred.settle().resolve(this.result);
-                    } else {
-                        result.value.onSettledRun(() ->
-                                asyncAwaitCompleteNotify(this));
-                    }
+                    result.onSettledRun(() ->
+                            asyncAwaitCompleteNotify(this));
                 }, error -> {
-                    // threw an error:
                     deferred.settle().reject(error);
-                    //
                 }, () -> {
-                    // was cancelled for some reason:
-                    deferred.settle().cancel();
-                    //
+                    coThread.close();
+                    deferred.settle().resolve(this.result);
                 });
             }
         }
