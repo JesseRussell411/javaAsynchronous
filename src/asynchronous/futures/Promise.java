@@ -1,4 +1,6 @@
 package asynchronous.futures;
+import asynchronous.futures.exceptions.PromiseCancellationException;
+
 import java.time.*;
 import java.util.*;
 import java.util.concurrent.*;
@@ -6,13 +8,16 @@ import java.util.concurrent.atomic.*;
 import java.util.function.*;
 
 
-
+/*
+ * Total rip-off of javascript's promise, but what, this one has a cancel state to make things more complicated.
+ */
 public class Promise<T> implements Future<T>{
 	private volatile T result = null;
 	private volatile Throwable error = null;
-	private volatile boolean fulfilled;
-	private volatile boolean rejected;
-	private volatile boolean canceled;
+	// flags for the 3 possible final states of the promise
+	private volatile boolean fulfilled = false;
+	private volatile boolean rejected = false;
+	private volatile boolean cancelled = false;
 	private final Object awaitLock = new Object();
 	private final Queue<Callback<T, ?>> callbacks = new ConcurrentLinkedQueue<>();
 	
@@ -21,17 +26,19 @@ public class Promise<T> implements Future<T>{
 	}
 	
 	Promise(){}
-	
-	/** Whether the Promise has been fulfilled, rejected, or canceled */
-	public boolean isSettled() { return fulfilled || rejected || canceled; }
+
+	// ================ Properties =======================
+	/** Whether the Promise has been fulfilled, rejected, or cancelled */
+	public boolean isSettled() { return fulfilled || rejected || cancelled; }
 	/** Whether the Promise is waiting to be settled */
 	public boolean isPending() { return !isSettled(); }
 	/** Whether the Promise has been fulfilled */
 	public boolean isFulfilled() { return fulfilled; }
 	/** Whether the Promise has been rejected */
 	public boolean isRejected() { return rejected; }
-	/** Whether the Promise has been canceled */
-	public boolean isCanceled() { return canceled; }
+	/** Whether the Promise has been cancelled */
+	@Override
+	public boolean isCancelled() { return cancelled; }
 	
 	/** @return The result of the Promise. Returns null if the Promise has yet
 	 * to be fulfilled (or if the result was actually null). */
@@ -75,10 +82,10 @@ public class Promise<T> implements Future<T>{
 		}
 	}
 
-	// handle's the event that the promise is canceled
+	// handle's the event that the promise is cancelled
 	private synchronized void handleCancel() {
 		//apply state
-		canceled = true;
+		cancelled = true;
 		
 		// cancel the callbacks
 		cancelCallbacks();
@@ -248,7 +255,7 @@ public class Promise<T> implements Future<T>{
 			resolveCallbacks(result);
 		else if (isRejected())
 			rejectCallbacks(error);
-		else if (isCanceled())
+		else if (isCancelled())
 			cancelCallbacks();
 		else
 			return false;
@@ -606,14 +613,14 @@ public class Promise<T> implements Future<T>{
 			
 			timerThread.interrupt();
 		}
-		
-		
+
+
 		if (isRejected())
 			throw new ExecutionException(error);
-		else if (isFulfilled())
-			return result;
+		else if (isCancelled())
+			throw new PromiseCancellationException(this);
 		else
-			return null;
+			return result;
 	}
 	
 	public T await() throws InterruptedException, ExecutionException{
@@ -625,6 +632,8 @@ public class Promise<T> implements Future<T>{
 		
 		if (isRejected())
 			throw new ExecutionException(error);
+		else if (isCancelled())
+			throw new PromiseCancellationException(this);
 		else
 			return result;
 	}
@@ -636,18 +645,13 @@ public class Promise<T> implements Future<T>{
 			return await(timeout.toMillis(), TimeUnit.MILLISECONDS);
 	}
 	
-	/** Promises cannot be cancelled. Will always return false. */
+	/** Promises cannot be cancelled directly. Will always return false. */
 	@Override
 	public boolean cancel(boolean mayInterruptIfRunning) {
 		return false;
 	}
-	
-	/** Promises cannot be cancelled. Will always return false. */
 	@Override
-	public boolean isCancelled() {
-		return false;
-	}
-	@Override
+	/** @return Whether the promise is settled. **/
 	public boolean isDone() {
 		return isSettled();
 	}
@@ -660,7 +664,7 @@ public class Promise<T> implements Future<T>{
 		return await(timeout, unit);
 	}
 	
-	// constructor functions:
+	// ======================== Factory functions ========================
 	public static class PromiseAndThread<T>{
 		public final Promise<T> promise;
 		public final Thread thread;
@@ -747,9 +751,9 @@ public class Promise<T> implements Future<T>{
 	}
 	
 	/**
-	 * Constructor a promise that is already canceled.
+	 * Constructor a promise that is already cancelled.
 	 */
-	public static <T> Promise<T> canceled(){
+	public static <T> Promise<T> cancelled(){
 		final var promise = new Promise<T>();
 		promise.cancel();
 		return promise;
@@ -816,7 +820,7 @@ public class Promise<T> implements Future<T>{
 	// cool static methods:
 	/**
 	 * @return A promise that resolves when all promises are fulfilled and
-	 * rejects when any of the promises is rejected and cancels when any of the promises is canceled.
+	 * rejects when any of the promises is rejected and cancels when any of the promises is cancelled.
 	 */
 	public static Promise<Void> all(Iterable<Promise<?>> promises){
 		final var iter = promises.iterator();
@@ -859,7 +863,7 @@ public class Promise<T> implements Future<T>{
 	}
 	
 	/**
-	 * @return A promise that resolves when any of the promises is fulfilled or rejected. Cancels if all promises are canceled.
+	 * @return A promise that resolves when any of the promises is fulfilled or rejected. Cancels if all promises are cancelled.
 	 */
 	public static <T> Promise<Promise<T>> any(Iterable<Promise<T>> promises){
 		final var result = new Promise<Promise<T>>();
@@ -896,9 +900,9 @@ public class Promise<T> implements Future<T>{
 	
 	// inner class "Callback" used for callback methods like then and onError
 	private interface Callback<T, R>{
-		boolean applyResolve(T result);
-		boolean applyReject(Throwable error);
-		boolean applyCancel();
+		void applyResolve(T result);
+		void applyReject(Throwable error);
+		void applyCancel();
 		Promise<R> promise();
 	}
 
@@ -928,32 +932,32 @@ public class Promise<T> implements Future<T>{
 		public Promise<R> promise() { return next; }
 		
 		@Override
-		public boolean applyResolve(T result) {
+		public void applyResolve(T result) {
 			try {
-				return next.resolve(then.apply(result));
+				next.resolve(then.apply(result));
 			}
 			catch(Throwable e) {
-				return next.reject(e);
+				next.reject(e);
 			}
 		}
 		
 		@Override
-		public boolean applyReject(Throwable error){
+		public void applyReject(Throwable error){
 			try {
-				return next.resolve(onError.apply(error));
+				next.resolve(onError.apply(error));
 			}
 			catch(Throwable e) {
-				return next.reject(e);
+				next.reject(e);
 			}
 		}
 		
 		@Override
-		public boolean applyCancel() {
+		public void applyCancel() {
 			try {
-				return next.resolve(onCancel.get());
+				next.resolve(onCancel.get());
 			}
 			catch(Throwable e){
-				return next.reject(e);
+				next.reject(e);
 			}
 		}
 	}
@@ -969,7 +973,7 @@ public class Promise<T> implements Future<T>{
 			if (then != null)
 				this.then = then;
 			else
-				this.then = t -> {return Promise.<R>resolved(null);};
+				this.then = t -> Promise.<R>resolved(null);
 				
 			if (onError != null)
 				this.onError = onError;
@@ -985,56 +989,48 @@ public class Promise<T> implements Future<T>{
 		public Promise<R> promise() { return next; }
 		
 		@Override
-		public boolean applyResolve(T result) {
-			if (applied) return false;
+		public void applyResolve(T result) {
+			if (applied) return;
 			synchronized(next) {
-				if (applied || next.isSettled()) {
-					return false;
-				}
-				else {
-					then.apply(result).thenAccept(
-							r -> next.resolve(r),
-							e -> next.reject(e),
-							() -> next.cancel());
-					applied = true;
-					return true;
-				}
+				if (applied || next.isSettled())
+					return;
+				then.apply(result).thenAccept(
+						r -> next.resolve(r),
+						e -> next.reject(e),
+						() -> next.cancel());
+				applied = true;
+				return;
 			}
 		}
 		
 		@Override
-		public boolean applyReject(Throwable error){
-			if (applied) return false;
+		public void applyReject(Throwable error){
+			if (applied) return;
 			synchronized(next) {
-				if (applied || next.isSettled()) {
-					return false;
-				}
-				else {
-					onError.apply(error).thenAccept(
-							r -> next.resolve(r),
-							e -> next.reject(e),
-							() -> next.cancel());
-					applied = true;
-					return true;
-				}
+				if (applied || next.isSettled())
+					return;
+				onError.apply(error).thenAccept(
+						r -> next.resolve(r),
+						e -> next.reject(e),
+						() -> next.cancel());
+				applied = true;
+				return;
 			}
 		}
 		
 		@Override
-		public boolean applyCancel() {
-			if (applied) return false;
+		public void applyCancel() {
+			if (applied) return;
 			synchronized(next) {
-				if (applied || next.isSettled()) {
-					return false;
-				}
-				else {
-					onCancel.get().thenAccept(
-							r -> next.resolve(r),
-							e -> next.reject(e),
-							() -> next.cancel());
-					applied = true;
-					return true;
-				}
+				if (applied || next.isSettled())
+					return;
+
+				onCancel.get().thenAccept(
+						r -> next.resolve(r),
+						e -> next.reject(e),
+						() -> next.cancel());
+				applied = true;
+				return;
 			}
 		}
 	}

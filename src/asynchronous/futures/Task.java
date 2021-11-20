@@ -54,7 +54,7 @@ public class Task<T> implements Future<T> {
 	}
 	@Override
 	public boolean isCancelled() {
-		return _promise.isCanceled();
+		return _promise.isCancelled();
 	}
 	@Override
 	public boolean isDone() {
