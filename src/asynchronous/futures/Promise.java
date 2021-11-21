@@ -11,7 +11,7 @@ import java.util.function.*;
 
 
 /*
- * Total rip-off of javascript's promise, but what, this one has a cancel state to make things more complicated.
+ * Total rip-off of javascript's promise, but wait, this one has a cancel state to make things more complicated.
  */
 public class Promise<T> implements Future<T> {
     private volatile T result = null;
