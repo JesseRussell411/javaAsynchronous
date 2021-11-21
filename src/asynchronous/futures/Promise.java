@@ -319,6 +319,7 @@ public class Promise<T> implements Future<T> {
         return true;
     }
 
+    // ============================================== Callback takers ==========================================
     /**
      * Adds the callback to the promise, all callback methods (then, onError, onSettled) end up calling this one.
      */
@@ -746,6 +747,7 @@ public class Promise<T> implements Future<T> {
     public <R> Promise<R> asyncOnNoCancel(Supplier<Promise<R>> onNoCancel) {
         return asyncOnNoCancelGet(onNoCancel);
     }
+    // END Callback takers
 
 
     // blocking wait
