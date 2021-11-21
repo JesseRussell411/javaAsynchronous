@@ -80,10 +80,23 @@ public class AtomLong {
         }
     }
 
-    public void mod(LongUnaryOperator modifier) {
+    public void modApply(LongUnaryOperator modifier) {
         synchronized (value) {
-            set(modifier.applyAsLong(get()));
+            pokeSet(modifier.applyAsLong(get()));
         }
+    }
+
+    public void modAccept(LongConsumer modifier){
+        synchronized (value) {
+            modifier.accept(value.get());
+            poke();
+        }
+    }
+    public void mod(LongUnaryOperator modifier){
+        modApply(modifier);
+    }
+    public void mod(LongConsumer modifier){
+        modAccept(modifier);
     }
 
     public long getAndIncrement(){

@@ -1,4 +1,5 @@
 package testDrive;
+import java.util.ArrayList;
 import java.util.Random;
 import java.util.concurrent.ExecutionException;
 import java.util.function.*;
@@ -6,6 +7,7 @@ import java.util.function.*;
 import asynchronous.*;
 import asynchronous.asyncAwait.*;
 import asynchronous.futures.Promise;
+import atoms.Atom;
 import exceptionsPlus.UncheckedWrapper;
 import reference.RefBoolean;
 
@@ -129,68 +131,68 @@ public class Driver {
 		final var getHello = async.def("getHello", await -> {
 			// sleep for a bit
 			await.sleep(1000);
-			
+
 			// get around to returning hello
 			return "hello";
 		});
-		
+
 		final var getSpace = async.def("getSpace", await -> {
 			//sleep for a bit
 			await.sleep(500);
-			
+
 			// get around to returning a space
 			return " ";
 		});
-		
-		final var getWorld = async.def("getWorld", await -> {		
+
+		final var getWorld = async.def("getWorld", await -> {
 			// sleep for a bit
 			await.sleep(900);
-			
+
 			// get around to returning world
 			return "world";
 		});
-		
+
 		final var getHelloworld = async.def("getHelloworld", await -> {
 			// get the promises from each function
 			final var hello = getHello.get();
 			final var space = getSpace.get();
 			final var world = getWorld.get();
-			
+
 			// await those promises
 			return await.apply(hello) +
 					await.apply(space) +
 					await.apply(world);
 		});
-		
+
 		final var main = async.def("main", await -> {
 			System.out.println("Getting hello world...");
 			System.out.println(await.apply(getHelloworld.get()));
 			System.out.println("Hello world has been gotten.");
+
 		});
-		
-		
+
 		System.out.println("Hello world example: ");
 		main.get();
 		// execute doesn't HAVE to be called at the end of main. It can really be called anywhere. But beware, it blocks until all async function calls are complete.
 		async.execute();
-		
-		
-		
-		
-		
+
+
+
+
+
 		// Error handling example/test:
 		// ---------------------------
-		
+
 		// Errors propagate up just like in javascript, but they do have to be wrapped in UncheckedWrapper (a RuntimeException)
 		// because checked exceptions get really annoying when you're using lambdas.
 		final var throwSomething = async.def("throwSomething", (Consumer<Async.Await>)(await -> {
 			throw new NullPointerException("This pointer doesn't exist. Oh, wait that means void! sorry");
 		}));
-		
+
 		final var runThrowSomethingAsIfItDoesntThrowAnything = async.def("runThrowSomethingAsIfItDoesntThrowAnything", await -> {
 			await.apply(throwSomething.get());
 		});
-		
+
 		final var main2 = async.def(await -> {
 			System.out.println("Error handling test...");
 			try {
@@ -210,25 +212,25 @@ public class Driver {
 				}
 			}
 		});
-		
-		
-		
+
+
+
 		main2.get();
 		async.execute();
-		
-		
+
+
 		// A big mess that I call example 3:
 		// ---------------------------------------------------
 		final var get8 = async.def("get8", await -> {
 			await.sleep(1000);
 			return 8;
 		});
-		
+
 		final var get2plus8 = async.def(await -> {
 			var Promise8 = get8.get();
 			return await.apply(Promise8) + 2;
 		});
-		
+
 		final var getHello10 = async.def("getHello10", await -> {
 			var PromiseForHello = getHello.get();
 			var PromiseFor10 = get2plus8.get();
@@ -246,43 +248,43 @@ public class Driver {
 				return "SOMETHINGWENTWRONG";
 			}
 		});
-		
+
 		final var getHelloAnd = async.def((Async.Await await, Double addition) -> {
 			return await.apply(getHello.get()) + addition;
 		});
-		
-		
+
+
 		getHello10.get().thenAccept(r -> System.out.println(r));
 		getHelloAnd.apply(42.41).then(r -> {System.out.println(r);});
-		
-		
+
+
 		final var slowAdd = async.def("slowAdd", (Async.Await await , Double d1, Double d2) -> {
 			await.sleep(1000);
 			return d1 + d2;
 		});
-		
+
 		@SuppressWarnings("unused")
 		final var slowAddSpecific = async.<Double, Double, Long, Double>def((await, d1, d2, waitTime) -> {
 			await.sleep(waitTime);
 			return d1 + d2;
 		});
-		
-		
+
+
 		var slowPromise = slowAdd.apply(0.1, 0.2);
-		
+
 		// multiple execution threads? Why not!
 		new Thread(() -> { try{async.execute();}catch(Throwable e) {} }, "execution thread 1").start();
 		new Thread(() -> { try{async.execute();}catch(Throwable e) {} }, "execution thread 2").start();
 		new Thread(() -> { try{async.execute();}catch(Throwable e) {} }, "execution thread 3").start();
-		
+
 		// awaiting promise instead of calling them. unlike javascript, java can block.
 		new Thread(() -> { try { System.out.println(slowPromise.await() + "from steve"); } catch(Throwable e) {} }, "steve").start();
 		new Thread(() -> { try { System.out.println(slowPromise.await() + "from steve2"); } catch(Throwable e) {} }, "steve2").start();
 		new Thread(() -> { try { System.out.println(slowPromise.await() + "from steve3"); } catch(Throwable e) {} }, "steve3").start();
 		try{System.out.println(slowPromise.await());}catch(Throwable e) {};
-		
-		
-		
+
+
+
 		//CoThread run test
 		CoThread<Integer> numberGiver = new CoThread<>((yields) -> {
 			try {
@@ -293,7 +295,7 @@ public class Driver {
 			}
 			catch (InterruptedException e) {}
 		}, "number giver");
-		
+
 		final var numberGetter = async.defRunnable((await) -> {
 			var run = new RefBoolean(true);
 			while(run.get()) {
@@ -305,11 +307,15 @@ public class Driver {
 				});
 			}
 		});
-		
-		
+
+
 		numberGetter.get();
-		
+
 		async.execute();
 		numberGiver.close();
+
+
+
+
 	}
 }

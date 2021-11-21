@@ -74,16 +74,29 @@ public class Atom<T> {
         }
     }
 
-    public void poke(){
-        synchronized (value){
+    public void poke() {
+        synchronized (value) {
             notifySet(value.get());
         }
     }
 
-    public void mod(Function<T, T> modifier) {
+    public void modApply(Function<T, T> modifier) {
         synchronized (value) {
-            set(modifier.apply(get()));
+            pokeSet(modifier.apply(get()));
         }
+    }
+
+    public void modAccept(Consumer<T> modifier){
+        synchronized (value) {
+            modifier.accept(value.get());
+            poke();
+        }
+    }
+    public void mod(Function<T, T> modifier){
+        modApply(modifier);
+    }
+    public void mod(Consumer<T> modifier){
+        modAccept(modifier);
     }
 
     private void notifySet(T newValue) {

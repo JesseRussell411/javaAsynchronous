@@ -78,10 +78,23 @@ public class AtomBool{
         }
     }
 
-    public void mod(Function<Boolean, Boolean> modifier){
-        synchronized (value){
-            set(modifier.apply(get()));
+    public void modApply(Function<Boolean, Boolean> modifier) {
+        synchronized (value) {
+            pokeSet(modifier.apply(get()));
         }
+    }
+
+    public void modAccept(Consumer<Boolean> modifier){
+        synchronized (value) {
+            modifier.accept(value.get());
+            poke();
+        }
+    }
+    public void mod(Function<Boolean, Boolean> modifier){
+        modApply(modifier);
+    }
+    public void mod(Consumer<Boolean> modifier){
+        modAccept(modifier);
     }
 
     public void toggle(){

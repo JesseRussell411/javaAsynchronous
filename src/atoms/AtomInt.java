@@ -80,10 +80,23 @@ public class AtomInt {
         }
     }
 
-    public void mod(IntUnaryOperator modifier) {
+    public void modApply(IntUnaryOperator modifier) {
         synchronized (value) {
-            set(modifier.applyAsInt(get()));
+            pokeSet(modifier.applyAsInt(get()));
         }
+    }
+
+    public void modAccept(IntConsumer modifier){
+        synchronized (value) {
+            modifier.accept(value.get());
+            poke();
+        }
+    }
+    public void mod(IntUnaryOperator modifier){
+        modApply(modifier);
+    }
+    public void mod(IntConsumer modifier){
+        modAccept(modifier);
     }
 
     public int getAndIncrement(){
