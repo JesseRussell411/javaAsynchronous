@@ -14,7 +14,7 @@ import asynchronous.futures.Promise;
 import asynchronous.futures.exceptions.FutureCancellationException;
 import exceptionsPlus.UncheckedWrapper;
 import functionPlus.*;
-import message.*;
+import atoms.*;
 
 /**
  * Asynchronous function used for asynchronous programming. Call Async.execute at the end of the main method to run called Async functions.
@@ -64,13 +64,13 @@ public class Async {
      *
      * @throws InterruptedException
      */
-    public void execute(VolitileMessenger<Integer> maxThreadCount, VolitileMessenger<Boolean> listen, VolitileMessenger<Boolean> stop) throws InterruptedException {
-        maxThreadCount.onChange(v -> {
+    public void execute(AtomInt maxThreadCount, AtomBool listen, AtomBool stop) throws InterruptedException {
+        maxThreadCount.onSet(v -> {
             synchronized (executeWaitLock) {
                 executeWaitLock.notifyAll();
             }
         });
-        stop.onChange(v -> {
+        stop.onSet(v -> {
             if (v == false)
                 return;
 
@@ -78,7 +78,7 @@ public class Async {
                 executeWaitLock.notifyAll();
             }
         });
-        listen.onChange(v -> {
+        listen.onSet(v -> {
             synchronized (executeWaitLock) {
                 executeWaitLock.notifyAll();
             }
@@ -119,32 +119,32 @@ public class Async {
         } while (!stop.get() && !(!listen.get() && executionQueue.isEmpty() && runningInstanceCount.get() == 0));
     }
 
-    public void execute(VolitileMessenger<Boolean> listen, VolitileMessenger<Boolean> stop) throws InterruptedException {
-        execute(new VolitileMessenger<Integer>(1), listen, stop);
+    public void execute(AtomBool listen, AtomBool stop) throws InterruptedException {
+        execute(new AtomInt(1), listen, stop);
     }
 
-    public void execute(VolitileMessenger<Integer> maxThreadCount) throws InterruptedException {
-        execute(maxThreadCount, new VolitileMessenger<Boolean>(false), new VolitileMessenger<Boolean>(false));
+    public void execute(AtomInt maxThreadCount) throws InterruptedException {
+        execute(maxThreadCount, new AtomBool(false), new AtomBool(false));
     }
 
     public void execute(int maxThreadCount, boolean listen) throws InterruptedException {
-        execute(new VolitileMessenger<Integer>(maxThreadCount), new VolitileMessenger<Boolean>(listen), new VolitileMessenger<Boolean>(false));
+        execute(new AtomInt(maxThreadCount), new AtomBool(listen), new AtomBool(false));
     }
 
     public void execute(int maxThreadCount) throws InterruptedException {
-        execute(new VolitileMessenger<Integer>(maxThreadCount), new VolitileMessenger<Boolean>(false), new VolitileMessenger<Boolean>(false));
+        execute(new AtomInt(maxThreadCount), new AtomBool(false), new AtomBool(false));
     }
 
-    public void execute(int maxThreadCount, boolean listen, VolitileMessenger<Boolean> stop) throws InterruptedException {
-        execute(new VolitileMessenger<Integer>(maxThreadCount), new VolitileMessenger<Boolean>(listen), stop);
+    public void execute(int maxThreadCount, boolean listen, AtomBool stop) throws InterruptedException {
+        execute(new AtomInt(maxThreadCount), new AtomBool(listen), stop);
     }
 
-    public void execute(int maxThreadCount, VolitileMessenger<Boolean> stop) throws InterruptedException {
-        execute(new VolitileMessenger<Integer>(maxThreadCount), new VolitileMessenger<Boolean>(false), stop);
+    public void execute(int maxThreadCount, AtomBool stop) throws InterruptedException {
+        execute(new AtomInt(maxThreadCount), new AtomBool(false), stop);
     }
 
     public void execute() throws InterruptedException {
-        execute(new VolitileMessenger<Integer>(1), new VolitileMessenger<Boolean>(false), new VolitileMessenger<Boolean>(false));
+        execute(new AtomInt(1), new AtomBool(false), new AtomBool(false));
     }
 
 
