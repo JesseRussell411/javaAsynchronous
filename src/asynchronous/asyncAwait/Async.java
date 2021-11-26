@@ -65,12 +65,12 @@ public class Async {
      * @throws InterruptedException
      */
     public void execute(AtomInt maxThreadCount, AtomBool listen, AtomBool stop) throws InterruptedException {
-        maxThreadCount.onSet(v -> {
+        final var cancelThreadCountUpdate = maxThreadCount.onChange(v -> {
             synchronized (executeWaitLock) {
                 executeWaitLock.notifyAll();
             }
         });
-        stop.onSet(v -> {
+        final var cancelStopUpdate = stop.onChange(v -> {
             if (v == false)
                 return;
 
@@ -78,45 +78,52 @@ public class Async {
                 executeWaitLock.notifyAll();
             }
         });
-        listen.onSet(v -> {
+        final var cancelListenUpdate = listen.onChange(v -> {
             synchronized (executeWaitLock) {
                 executeWaitLock.notifyAll();
             }
         });
 
-        final var threadCount = new AtomicInteger();
+        try {
 
-        // execution loop
-        do {
-            AsyncSupplier<?>.CalledInstance instance;
-            while (!stop.get() && threadCount.get() < maxThreadCount.get() && (instance = executionQueue.poll()) != null) {
-                threadCount.incrementAndGet();
+            final var threadCount = new AtomicInteger();
 
-                // execute the instance
-                // the returned promise will tell us when the instance yields again or if it completes or throws an error.
-                instance.execute().onSettledRun(() -> {
-                    threadCount.decrementAndGet();
-                    synchronized (executeWaitLock) {
-                        executeWaitLock.notifyAll();
-                    }
-                });
-            }
+            // execution loop
+            do {
+                AsyncSupplier<?>.CalledInstance instance;
+                while (!stop.get() && threadCount.get() < maxThreadCount.get() && (instance = executionQueue.poll()) != null) {
+                    threadCount.incrementAndGet();
 
-            synchronized (executeWaitLock) {
-                executeWaitLock.notifyAll();
-                while (!stop.get()) {
-                    // if the max thread count is zero, pause.
-                    if (maxThreadCount.get() != 0) {
-                        // exit conditions
-                        if (!listen.get() && executionQueue.isEmpty() && runningInstanceCount.get() == 0) break;
-                        // resume conditions
-                        if (!executionQueue.isEmpty()) break;
-                    }
-
-                    executeWaitLock.wait();
+                    // execute the instance
+                    // the returned promise will tell us when the instance yields again or if it completes or throws an error.
+                    instance.execute().onSettledRun(() -> {
+                        threadCount.decrementAndGet();
+                        synchronized (executeWaitLock) {
+                            executeWaitLock.notifyAll();
+                        }
+                    });
                 }
-            }
-        } while (!stop.get() && !(!listen.get() && executionQueue.isEmpty() && runningInstanceCount.get() == 0));
+
+                synchronized (executeWaitLock) {
+                    executeWaitLock.notifyAll();
+                    while (!stop.get()) {
+                        // if the max thread count is zero, pause.
+                        if (maxThreadCount.get() != 0) {
+                            // exit conditions
+                            if (!listen.get() && executionQueue.isEmpty() && runningInstanceCount.get() == 0) break;
+                            // resume conditions
+                            if (!executionQueue.isEmpty()) break;
+                        }
+
+                        executeWaitLock.wait();
+                    }
+                }
+            } while (!stop.get() && !(!listen.get() && executionQueue.isEmpty() && runningInstanceCount.get() == 0));
+        } finally{
+            cancelThreadCountUpdate.run();
+            cancelStopUpdate.run();
+            cancelListenUpdate.run();
+        }
     }
 
     public void execute(AtomBool listen, AtomBool stop) throws InterruptedException {
