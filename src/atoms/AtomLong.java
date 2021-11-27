@@ -11,29 +11,38 @@ public class AtomLong extends AtomRef<Long> {
     }
 
     public Long addAndGet(long value) {
-        if (value == 0) {
+        if (value == 0){
             return get();
         }
+
+        Long newValue;
         try {
             writeLock.lock();
-            return this.value + value;
+            newValue = this.value += value;
         } finally {
             writeLock.unlock();
         }
+
+        applyUpdate(newValue);
+        return newValue;
     }
 
     public Long getAndAdd(long value) {
         if (value == 0){
             return get();
         }
+
+        Long newValue, result;
         try {
             writeLock.lock();
-            Long result = this.value;
-            this.value += value;
-            return result;
+            result = this.value;
+            newValue = this.value += value;
         } finally {
             writeLock.unlock();
         }
+
+        applyUpdate(newValue);
+        return result;
     }
 
     public Long incrementAndGet(){

@@ -11,29 +11,38 @@ public class AtomInt extends AtomRef<Integer> {
     }
 
     public Integer addAndGet(int value) {
-        if (value == 0) {
+        if (value == 0){
             return get();
         }
+
+        Integer newValue;
         try {
             writeLock.lock();
-            return this.value + value;
+            newValue = this.value += value;
         } finally {
             writeLock.unlock();
         }
+
+        applyUpdate(newValue);
+        return newValue;
     }
 
     public Integer getAndAdd(int value) {
         if (value == 0){
             return get();
         }
+
+        Integer newValue, result;
         try {
             writeLock.lock();
-            Integer result = this.value;
-            this.value += value;
-            return result;
+            result = this.value;
+            newValue = this.value += value;
         } finally {
             writeLock.unlock();
         }
+
+        applyUpdate(newValue);
+        return result;
     }
 
     public Integer incrementAndGet(){

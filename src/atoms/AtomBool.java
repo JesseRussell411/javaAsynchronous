@@ -11,22 +11,29 @@ public class AtomBool extends AtomRef<Boolean> {
     }
 
     public Boolean toggleAndGet() {
+        Boolean newValue;
         try {
             writeLock.lock();
-            return value = !value;
+            newValue = value = !value;
         } finally {
             writeLock.unlock();
         }
+
+        applyUpdate(newValue);
+        return newValue;
     }
 
     public Boolean getAndToggle() {
+        Boolean newValue, result;
         try {
             writeLock.lock();
-            Boolean result = value;
-            value = !value;
-            return result;
+            result = value;
+            newValue = value = !value;
         } finally {
             writeLock.unlock();
         }
+
+        applyUpdate(newValue);
+        return result;
     }
 }

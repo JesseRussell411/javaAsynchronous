@@ -14,51 +14,70 @@ public class AtomDouble extends AtomRef<Double> {
         if (value == 0) {
             return get();
         }
+
+        Double newValue, result;
         try {
             writeLock.lock();
-            return this.value + value;
+            result = this.value;
+            newValue = this.value += value;
         } finally {
             writeLock.unlock();
         }
+
+        applyUpdate(newValue);
+        return result;
     }
 
     public Double getAndAdd(double value) {
         if (value == 0) {
             return get();
         }
+
+        Double newValue, result;
         try {
             writeLock.lock();
-            Double result = this.value;
-            this.value += value;
-            return result;
+            result = this.value;
+            newValue = this.value += value;
         } finally {
             writeLock.unlock();
         }
+
+        applyUpdate(newValue);
+        return result;
     }
 
     public Double scaleAndGet(double scalar) {
         if (scalar == 1) {
             return get();
         }
+
+        Double newValue;
         try {
             writeLock.lock();
-            return value *= scalar;
+            newValue = value *= scalar;
         } finally {
             writeLock.unlock();
         }
+
+        applyUpdate(newValue);
+        return newValue;
     }
 
     public Double getAndScale(double scalar) {
         if (scalar == 1) {
             return get();
         }
+
+        Double newValue, result;
         try {
             writeLock.lock();
-            Double result = value;
-            value *= scalar;
-            return result;
+            result = value;
+            newValue = value *= scalar;
         } finally {
             writeLock.unlock();
         }
+
+        applyUpdate(newValue);
+        return result;
     }
 }

@@ -2,6 +2,7 @@ package atoms;
 
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
+import java.util.function.BiPredicate;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Predicate;
@@ -13,15 +14,35 @@ import java.util.function.Predicate;
 public class AtomRef<T> {
     volatile T value;
     Lock writeLock = new ReentrantLock();
+    // ====================== checking equality ====================
+    private BiPredicate<T, T> equalityCheck;
+    private boolean checkEquality(T a, T b){
+        return equalityCheck.test(a, b);
+    }
+
+    // ===================== constructors =========================
+    public AtomRef(T value, BiPredicate<T, T> checkEquality) {
+        this.equalityCheck = checkEquality != null ? checkEquality : (a, b) -> a == b;
+        this.value = value;
+    }
+
+    public AtomRef(T value) {
+        this(value, null);
+    }
+
+    public AtomRef() {
+        this(null, null);
+    }
+
+    public T get() {
+        return value;
+    }
+
 
     // ====================== onChange callbacks stuff =================================
-//    private Queue<Consumer<T>> onChangeActions = new ConcurrentLinkedQueue<>();
-//    private Queue<Consumer<T>> onChangeOnceActions = new ConcurrentLinkedQueue<>();
-//    private Queue<Predicate<T>> onChangeUntilActions = new ConcurrentLinkedQueue<>();
     private ConcurrentHashSet<Consumer<T>> onChangeActions = new ConcurrentHashSet<>();
     private ConcurrentHashSet<Consumer<T>> onChangeOnceActions = new ConcurrentHashSet<>();
     private ConcurrentHashSet<Predicate<T>> onChangeUntilActions = new ConcurrentHashSet<>();
-
 
     void applyUpdate(T newValue) {
         try {
@@ -86,25 +107,12 @@ public class AtomRef<T> {
     }
     //
 
-
-    public AtomRef(T value) {
-        this.value = value;
-    }
-
-    public AtomRef() {
-        this(null);
-    }
-
-    public T get() {
-        return value;
-    }
-
     public boolean trySet(T newValue) {
         boolean update;
 
         try {
             writeLock.lock();
-            if (update = (newValue != this.value)) {
+            if (update = (!checkEquality(newValue, this.value))) {
                 this.value = newValue;
             }
         } finally {
@@ -130,7 +138,7 @@ public class AtomRef<T> {
         try {
             writeLock.lock();
             newValue = mod.apply(value);
-            update = newValue != value;
+            update = !checkEquality(newValue, value);
         } finally {
             writeLock.unlock();
         }
@@ -150,7 +158,7 @@ public class AtomRef<T> {
             writeLock.lock();
             result = value;
             newValue = mod.apply(value);
-            update = newValue != value;
+            update = !checkEquality(newValue, value);
         } finally {
             writeLock.unlock();
         }
