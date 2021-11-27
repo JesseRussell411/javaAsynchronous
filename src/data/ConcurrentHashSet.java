@@ -1,4 +1,4 @@
-package atoms;
+package data;
 
 import java.util.Iterator;
 import java.util.concurrent.ConcurrentHashMap;

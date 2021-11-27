@@ -1,9 +1,11 @@
 package atoms;
 
 
+import functionPlus.NotNull;
+
 public class AtomDouble extends AtomRef<Double> {
     public AtomDouble(Double value) {
-        super(value);
+        super(value, NotNull::check);
     }
 
     public AtomDouble() {
@@ -13,71 +15,32 @@ public class AtomDouble extends AtomRef<Double> {
     public Double addAndGet(double value) {
         if (value == 0) {
             return get();
+        } else {
+            return modAndGet(thisValue -> thisValue + value);
         }
-
-        Double newValue, result;
-        try {
-            writeLock.lock();
-            result = this.value;
-            newValue = this.value += value;
-        } finally {
-            writeLock.unlock();
-        }
-
-        applyUpdate(newValue);
-        return result;
     }
 
     public Double getAndAdd(double value) {
         if (value == 0) {
             return get();
+        } else {
+            return getAndMod(thisValue -> thisValue + value);
         }
-
-        Double newValue, result;
-        try {
-            writeLock.lock();
-            result = this.value;
-            newValue = this.value += value;
-        } finally {
-            writeLock.unlock();
-        }
-
-        applyUpdate(newValue);
-        return result;
     }
 
-    public Double scaleAndGet(double scalar) {
-        if (scalar == 1) {
+    public Double scaleAndGet(double value) {
+        if (value == 1) {
             return get();
+        } else {
+            return modAndGet(thisValue -> thisValue * value);
         }
-
-        Double newValue;
-        try {
-            writeLock.lock();
-            newValue = value *= scalar;
-        } finally {
-            writeLock.unlock();
-        }
-
-        applyUpdate(newValue);
-        return newValue;
     }
 
-    public Double getAndScale(double scalar) {
-        if (scalar == 1) {
+    public Double getAndScale(double value) {
+        if (value == 1) {
             return get();
+        } else {
+            return getAndMod(thisValue -> thisValue * value);
         }
-
-        Double newValue, result;
-        try {
-            writeLock.lock();
-            result = value;
-            newValue = value *= scalar;
-        } finally {
-            writeLock.unlock();
-        }
-
-        applyUpdate(newValue);
-        return result;
     }
 }

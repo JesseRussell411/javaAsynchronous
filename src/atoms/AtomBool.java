@@ -1,9 +1,13 @@
 package atoms;
 
 
+import functionPlus.NotNull;
+
+import java.util.concurrent.atomic.AtomicBoolean;
+
 public class AtomBool extends AtomRef<Boolean> {
     public AtomBool(Boolean value) {
-        super(value);
+        super(value, NotNull::check);
     }
 
     public AtomBool() {
@@ -11,29 +15,50 @@ public class AtomBool extends AtomRef<Boolean> {
     }
 
     public Boolean toggleAndGet() {
-        Boolean newValue;
-        try {
-            writeLock.lock();
-            newValue = value = !value;
-        } finally {
-            writeLock.unlock();
-        }
-
-        applyUpdate(newValue);
-        return newValue;
+        return modAndGet(value -> !value);
     }
 
     public Boolean getAndToggle() {
-        Boolean newValue, result;
-        try {
-            writeLock.lock();
-            result = value;
-            newValue = value = !value;
-        } finally {
-            writeLock.unlock();
-        }
+        return getAndMod(value -> !value);
+    }
 
-        applyUpdate(newValue);
-        return result;
+    public Boolean andAndGet(boolean other) {
+        if (other == true) {
+            return get();
+        } else {
+            return modAndGet(value -> value && other);
+        }
+    }
+
+    public Boolean getAndAnd(boolean other) {
+        if (other == true) {
+            return get();
+        } else {
+            return getAndMod(value -> value && other);
+        }
+    }
+
+    public Boolean orAndGet(boolean other) {
+        if (other == false) {
+            return get();
+        } else {
+            return modAndGet(value -> value || other);
+        }
+    }
+
+    public Boolean getAndOr(boolean other) {
+        if (other == false) {
+            return get();
+        } else {
+            return getAndMod(value -> value || other);
+        }
+    }
+
+    public Boolean xorAndGet(boolean other) {
+        return modAndGet(value -> value ^ other);
+    }
+
+    public boolean getAndXor(boolean other) {
+        return getAndMod(value -> value ^ other);
     }
 }

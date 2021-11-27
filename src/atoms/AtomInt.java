@@ -1,9 +1,11 @@
 package atoms;
 
 
+import functionPlus.NotNull;
+
 public class AtomInt extends AtomRef<Integer> {
     public AtomInt(Integer value) {
-        super(value);
+        super(value, NotNull::check);
     }
 
     public AtomInt() {
@@ -11,50 +13,34 @@ public class AtomInt extends AtomRef<Integer> {
     }
 
     public Integer addAndGet(int value) {
-        if (value == 0){
+        if (value == 0) {
             return get();
+        } else {
+            return modAndGet(thisValue -> thisValue + value);
         }
-
-        Integer newValue;
-        try {
-            writeLock.lock();
-            newValue = this.value += value;
-        } finally {
-            writeLock.unlock();
-        }
-
-        applyUpdate(newValue);
-        return newValue;
     }
 
     public Integer getAndAdd(int value) {
-        if (value == 0){
+        if (value == 0) {
             return get();
+        } else {
+            return getAndMod(thisValue -> thisValue + value);
         }
-
-        Integer newValue, result;
-        try {
-            writeLock.lock();
-            result = this.value;
-            newValue = this.value += value;
-        } finally {
-            writeLock.unlock();
-        }
-
-        applyUpdate(newValue);
-        return result;
     }
 
-    public Integer incrementAndGet(){
+    public Integer incrementAndGet() {
         return addAndGet(1);
     }
-    public Integer decrementAndGet(){
+
+    public Integer decrementAndGet() {
         return addAndGet(-1);
     }
-    public Integer getAndIncrement(){
+
+    public Integer getAndIncrement() {
         return getAndAdd(1);
     }
-    public Integer getAndDecrement(){
+
+    public Integer getAndDecrement() {
         return getAndAdd(-1);
     }
 }

@@ -1,80 +1,45 @@
 package atoms;
 
+import functionPlus.NotNull;
+
 public class AtomString extends AtomRef<String> {
-    public AtomString(String value){
-        super(value, (a, b) -> a.equals(b));
+    public AtomString(String value) {
+        super(value, NotNull::check, (current, change) -> !current.equals(change));
     }
-    public AtomString(){
+
+    public AtomString() {
         this("");
     }
 
-    public String appendAndGet(String other){
-        if (other.length() == 0){
+    public String appendAndGet(String other) {
+        if (other == null || other.length() == 0) {
             return get();
+        } else {
+            return modAndGet(thisValue -> thisValue + other);
         }
-
-        String newValue;
-        try{
-            writeLock.lock();
-            newValue = value += other;
-        } finally{
-            writeLock.unlock();
-        }
-
-        applyUpdate(newValue);
-        return newValue;
     }
 
-    public String getAndAppend(String other){
-        if (other.length() == 0){
+    public String getAndAppend(String other) {
+        if (other == null || other.length() == 0) {
             return get();
+        } else {
+            return getAndMod(thisValue -> thisValue + other);
         }
-
-        String newValue, result;
-        try{
-            writeLock.lock();
-            result = value;
-            newValue = value += other;
-        } finally{
-            writeLock.unlock();
-        }
-
-        applyUpdate(newValue);
-        return result;
     }
 
-    public String prependAndGet(String other){
-        if (other.length() == 0){
+    public String prependAndGet(String other) {
+        if (other == null || other.length() == 0) {
             return get();
+        } else {
+            return modAndGet(thisValue -> other + thisValue);
         }
-
-        String newValue;
-        try{
-            writeLock.lock();
-            newValue = value += other;
-        } finally{
-            writeLock.unlock();
-        }
-
-        applyUpdate(newValue);
-        return newValue;
     }
 
-    public String getAndPrepend(String other){
-        if (other.length() == 0){
+    public String getAndPrepend(String other) {
+        if (other == null || other.length() == 0) {
             return get();
+        } else {
+            return getAndMod(thisValue -> other + thisValue);
         }
-
-        String newValue, result;
-        try{
-            writeLock.lock();
-            result = value;
-            newValue = value += other;
-        } finally{
-            writeLock.unlock();
-        }
-
-        applyUpdate(newValue);
-        return result;
     }
 }

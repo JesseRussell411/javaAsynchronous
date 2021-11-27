@@ -1,5 +1,9 @@
 package atoms;
 
+import data.ConcurrentHashSet;
+
+import java.util.HashSet;
+import java.util.Set;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.BiPredicate;
@@ -12,26 +16,41 @@ import java.util.function.Predicate;
  * @param <T>
  */
 public class AtomRef<T> {
-    volatile T value;
-    Lock writeLock = new ReentrantLock();
-    // ====================== checking equality ====================
-    private BiPredicate<T, T> equalityCheck;
-    private boolean checkEquality(T a, T b){
-        return equalityCheck.test(a, b);
+    private volatile T value;
+    private Lock writeLock = new ReentrantLock();
+
+    // ====================== checking ====================
+    private BiPredicate<T, T> test;
+    private Predicate<T> filter;
+
+    private boolean okToSet(T currentValue, T newValue) {
+        return filter.test(newValue) &&
+                test.test(currentValue, newValue);
     }
 
     // ===================== constructors =========================
-    public AtomRef(T value, BiPredicate<T, T> checkEquality) {
-        this.equalityCheck = checkEquality != null ? checkEquality : (a, b) -> a == b;
+    public AtomRef(T value, Predicate<T> filter, BiPredicate<T, T> test) {
+        this.test = test != null ? test : (currentValue, newValue) -> currentValue != newValue;
+        this.filter = filter != null ? filter : (newValue) -> true;
         this.value = value;
+
+        if (!this.filter.test(this.value)) {
+            throw new IllegalStateException("Initial value"
+                    + (this.value == null ? "" : "( " + this.value + ")")
+                    + " does not pass through the provided filter.");
+        }
+    }
+
+    public AtomRef(T value, Predicate<T> filter) {
+        this(value, filter, null);
     }
 
     public AtomRef(T value) {
-        this(value, null);
+        this(value, null, null);
     }
 
     public AtomRef() {
-        this(null, null);
+        this(null, null, null);
     }
 
     public T get() {
@@ -40,111 +59,128 @@ public class AtomRef<T> {
 
 
     // ====================== onChange callbacks stuff =================================
-    private ConcurrentHashSet<Consumer<T>> onChangeActions = new ConcurrentHashSet<>();
-    private ConcurrentHashSet<Consumer<T>> onChangeOnceActions = new ConcurrentHashSet<>();
-    private ConcurrentHashSet<Predicate<T>> onChangeUntilActions = new ConcurrentHashSet<>();
+    private Set<Predicate<T>> onChangeActions = new HashSet<>();
 
-    void applyUpdate(T newValue) {
-        try {
-            // permanent actions
-            for (final var action : onChangeActions) {
-                action.accept(newValue);
-            }
-            // single use actions
-            {
-                for (final var current : onChangeActions) {
-                    final var action = onChangeActions.remove(current);
-                    if (action == null) {
-                        continue;
-                    } else {
-                        action.accept(newValue);
-                    }
-                }
-            }
-            // multi-use actions
-            synchronized (onChangeUntilActions) {
-                onChangeUntilActions.removeIf(action -> action.test(newValue));
-            }
-        } finally {
-            synchronized (this) {
-                this.notifyAll();
-            }
-        }
-    }
+    private ConcurrentHashSet<Consumer<T>> async_onChangeActions = new ConcurrentHashSet<>();
+    private ConcurrentHashSet<Consumer<T>> async_onChangeOnceActions = new ConcurrentHashSet<>();
 
-    void applyUpdate() {
-        applyUpdate(this.value);
+    public Runnable onChangeUntil(Predicate<T> action) {
+        onChangeActions.add(action);
+        return () -> onChangeActions.remove(action);
     }
 
     public Runnable onChange(Consumer<T> action) {
-        try {
-            onChangeActions.add(action);
-            return () ->
-                    onChangeActions.remove(action);
-        } finally {
-            onChangeActions.remove(action);
-        }
+        return onChangeUntil(newValue -> {
+            action.accept(newValue);
+            return false;
+        });
     }
 
     public Runnable onChangeOnce(Consumer<T> action) {
-        try {
-            onChangeOnceActions.add(action);
-            return () ->
-                    onChangeOnceActions.remove(action);
-        } finally {
-            onChangeOnceActions.remove(action);
+        return onChangeUntil(newValue -> {
+            action.accept(newValue);
+            return true;
+        });
+    }
+
+    public Runnable asyncOnChange(Consumer<T> action) {
+        async_onChangeActions.add(action);
+        return () -> async_onChangeActions.remove(action);
+    }
+
+    public Runnable asyncOnChangeOnce(Consumer<T> action) {
+        async_onChangeOnceActions.add(action);
+        return () -> async_onChangeOnceActions.remove(action);
+    }
+
+    private void applySyncUpdate(T newValue) {
+        onChangeActions.removeIf(action -> action.test(newValue));
+
+        synchronized (this) {
+            this.notifyAll();
+            ;
         }
     }
 
-    public Runnable onChangeUntil(Predicate<T> action) {
-        try {
-            onChangeUntilActions.add(action);
-            return () ->
-                    onChangeUntilActions.remove(action);
-        } finally {
-            onChangeUntilActions.remove(action);
+    private void applyAsyncUpdate(T newValue) {
+        // single use actions
+        for (final var current : async_onChangeOnceActions) {
+            final var action = async_onChangeOnceActions.remove(current);
+
+            if (action != null) {
+                action.accept(newValue);
+            }
         }
+        // multi use actions
+        for (final var action : async_onChangeActions) {
+            action.accept(newValue);
+        }
+
     }
     //
 
     public boolean trySet(T newValue) {
-        boolean update;
+        boolean update = false;
 
         try {
             writeLock.lock();
-            if (update = (!checkEquality(newValue, this.value))) {
+            if (okToSet(this.value, newValue)) {
                 this.value = newValue;
+                update = true;
+                applySyncUpdate(newValue);
             }
         } finally {
             writeLock.unlock();
         }
 
         if (update) {
-            applyUpdate(newValue);
+            applyAsyncUpdate(newValue);
         }
 
         return update;
     }
 
-    public T set(T newValue) {
-        trySet(newValue);
-        return newValue;
-    }
-
-    public T modAndGet(Function<T, T> mod) {
+    public boolean tryMod(Function<T, T> mod) {
         T newValue;
-        boolean update;
+        boolean update = false;
 
         try {
             writeLock.lock();
             newValue = mod.apply(value);
-            update = !checkEquality(newValue, value);
+
+            if (okToSet(value, newValue)) {
+                update = true;
+                applySyncUpdate(newValue);
+            }
         } finally {
             writeLock.unlock();
         }
 
         if (update) {
-            applyUpdate(newValue);
+            applyAsyncUpdate(newValue);
+        }
+
+        return update;
+    }
+
+    public T modAndGet(Function<T, T> mod) {
+        T newValue;
+        boolean update = false;
+
+        try {
+            writeLock.lock();
+            newValue = mod.apply(value);
+
+            if (okToSet(value, newValue)) {
+                update = true;
+                applySyncUpdate(newValue);
+            }
+        } finally {
+            writeLock.unlock();
+        }
+
+        if (update) {
+            applyAsyncUpdate(newValue);
         }
 
         return newValue;
@@ -152,22 +188,42 @@ public class AtomRef<T> {
 
     public T getAndMod(Function<T, T> mod) {
         T newValue, result;
-        boolean update;
+        boolean update = false;
 
         try {
             writeLock.lock();
             result = value;
             newValue = mod.apply(value);
-            update = !checkEquality(newValue, value);
+            if (okToSet(value, newValue)) {
+                update = true;
+                applySyncUpdate(newValue);
+            }
         } finally {
             writeLock.unlock();
         }
 
         if (update) {
-            applyUpdate(newValue);
+            applyAsyncUpdate(newValue);
         }
 
         return result;
+    }
+
+    public T getAndSet(T newValue) {
+        return getAndMod(value -> newValue);
+    }
+
+    public T setAndGet(T newValue) {
+        trySet(newValue);
+        return newValue;
+    }
+
+    public void set(T newValue) {
+        trySet(newValue);
+    }
+
+    public void mod(Function<T, T> mod) {
+        tryMod(mod);
     }
 }
 
