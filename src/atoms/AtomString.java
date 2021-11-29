@@ -27,6 +27,12 @@ public class AtomString extends AtomRef<String> {
         }
     }
 
+    public void append(String other){
+        if (other != null || other.length() != 0) {
+            mod(thisValue -> thisValue + other);
+        }
+    }
+
     public String prependAndGet(String other) {
         if (other == null || other.length() == 0) {
             return get();
@@ -40,6 +46,12 @@ public class AtomString extends AtomRef<String> {
             return get();
         } else {
             return getAndMod(thisValue -> other + thisValue);
+        }
+    }
+
+    public void prepend(String other){
+        if (other != null && other.length() != 0){
+            mod(thisValue -> other + thisValue);
         }
     }
 }

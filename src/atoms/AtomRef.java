@@ -1,5 +1,7 @@
 package atoms;
 
+import asynchronous.futures.Deferred;
+import asynchronous.futures.Promise;
 import data.ConcurrentHashSet;
 
 import java.util.HashSet;
@@ -18,6 +20,7 @@ import java.util.function.Predicate;
 public class AtomRef<T> {
     private volatile T value;
     private Lock writeLock = new ReentrantLock();
+    private Deferred<T> nextValue = new Deferred<>();
 
     // ====================== checking ====================
     private BiPredicate<T, T> test;
@@ -57,6 +60,10 @@ public class AtomRef<T> {
         return value;
     }
 
+    public Promise<T> getNext(){
+        return nextValue.promise();
+    }
+
 
     // ====================== onChange callbacks stuff =================================
     private Set<Predicate<T>> onChangeActions = new HashSet<>();
@@ -94,6 +101,8 @@ public class AtomRef<T> {
     }
 
     private void applySyncUpdate(T newValue) {
+        nextValue.settle().resolve(newValue);
+        nextValue = new Deferred<>();
         onChangeActions.removeIf(action -> action.test(newValue));
 
         synchronized (this) {
