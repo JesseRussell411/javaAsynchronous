@@ -12,6 +12,7 @@ import asynchronous.*;
 import asynchronous.futures.Deferred;
 import asynchronous.futures.Promise;
 import asynchronous.futures.exceptions.FutureCancellationException;
+import exceptionsPlus.UncheckedInterruptedException;
 import exceptionsPlus.UncheckedWrapper;
 import functionPlus.*;
 import atoms.*;
@@ -65,26 +66,25 @@ public class Async {
      * @throws InterruptedException
      */
     public void execute(AtomInt maxThreadCount, AtomBool listen, AtomBool stop) throws InterruptedException {
-        final var cancelThreadCountUpdate = maxThreadCount.onChange(v -> {
-            synchronized (executeWaitLock) {
-                executeWaitLock.notifyAll();
-            }
-        });
-        final var cancelStopUpdate = stop.onChange(v -> {
-            if (v == false)
-                return;
+        try (final var maxThreadCountObserver = maxThreadCount.getObserver(); final var listenObserver = listen.getObserver(); final var stopObserver = stop.getObserver()) {
+            maxThreadCountObserver.asyncOnChange(v -> {
+                synchronized (executeWaitLock) {
+                    executeWaitLock.notifyAll();
+                }
+            });
+            stopObserver.asyncOnChange(v -> {
+                if (v == false)
+                    return;
 
-            synchronized (executeWaitLock) {
-                executeWaitLock.notifyAll();
-            }
-        });
-        final var cancelListenUpdate = listen.onChange(v -> {
-            synchronized (executeWaitLock) {
-                executeWaitLock.notifyAll();
-            }
-        });
-
-        try {
+                synchronized (executeWaitLock) {
+                    executeWaitLock.notifyAll();
+                }
+            });
+            listenObserver.asyncOnChange(v -> {
+                synchronized (executeWaitLock) {
+                    executeWaitLock.notifyAll();
+                }
+            });
 
             final var threadCount = new AtomicInteger();
 
@@ -110,7 +110,8 @@ public class Async {
                         // if the max thread count is zero, pause.
                         if (maxThreadCount.get() != 0) {
                             // exit conditions
-                            if (!listen.get() && executionQueue.isEmpty() && runningInstanceCount.get() == 0) break;
+                            if (!listen.get() && executionQueue.isEmpty() && runningInstanceCount.get() == 0)
+                                break;
                             // resume conditions
                             if (!executionQueue.isEmpty()) break;
                         }
@@ -119,10 +120,7 @@ public class Async {
                     }
                 }
             } while (!stop.get() && !(!listen.get() && executionQueue.isEmpty() && runningInstanceCount.get() == 0));
-        } finally{
-            cancelThreadCountUpdate.run();
-            cancelStopUpdate.run();
-            cancelListenUpdate.run();
+
         }
     }
 
@@ -167,12 +165,12 @@ public class Async {
         /**
          * Awaits the given future, returning it's result when it's resolved.
          *
-         * @param <T>      The type of the future.
-         * @param future   The future to await.
+         * @param <T>    The type of the future.
+         * @param future The future to await.
          * @return A Result representing the result of future or null if the future is null. The Result is undefined if
          * the future was canceled, or defined with the result of the future if it was not.
          * @throws UncheckedWrapper Wrapper around all Exceptions checked and un-checked. Will contain whatever
-         * exception was thrown.
+         *                          exception was thrown.
          */
         public <T> Result<T> getResult(Future<T> future) throws UncheckedWrapper {
             if (future == null) {
@@ -193,7 +191,7 @@ public class Async {
                         throw promise.getError();
                     } else if (promise.isCancelled()) {
                         return new Result<>();
-                    } else{
+                    } else {
                         throw new IllegalStateException("The promise given to Async.Await.apply has been settled but is not fulfilled, rejected, or cancelled.");
                     }
                 } else {
@@ -216,7 +214,7 @@ public class Async {
          */
         public <T> T apply(Future<T> future, Supplier<T> onCancel) throws UncheckedWrapper, FutureCancellationException {
             final var result = getResult(future);
-            if (result.undefined){
+            if (result.undefined) {
                 if (onCancel != null)
                     return onCancel.get();
                 else
@@ -264,9 +262,9 @@ public class Async {
     }
 
 
-    // o-------------------o
-    // | function classes: |
-    // o-------------------o
+// o-------------------o
+// | function classes: |
+// o-------------------o
 
     /**
      * Asynchronous function used for asynchronous programming. Call Async.execute at the end of the main method to run called Async functions.
@@ -735,6 +733,7 @@ public class Async {
         public String getName() {
             return async.getName();
         }
+
     }
 
     // o------o
