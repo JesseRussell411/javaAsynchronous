@@ -66,7 +66,7 @@ public class Async {
      * @throws InterruptedException
      */
     public void execute(AtomInt maxThreadCount, AtomBool listen, AtomBool stop) throws InterruptedException {
-        try (final var maxThreadCountObserver = maxThreadCount.getObserver(); final var listenObserver = listen.getObserver(); final var stopObserver = stop.getObserver()) {
+        try (final var maxThreadCountObserver = maxThreadCount.observe(); final var listenObserver = listen.observe(); final var stopObserver = stop.observe()) {
             maxThreadCountObserver.asyncOnChange(v -> {
                 synchronized (executeWaitLock) {
                     executeWaitLock.notifyAll();

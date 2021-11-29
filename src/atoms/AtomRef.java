@@ -61,7 +61,7 @@ public class AtomRef<T> {
     // ====================== onChange callbacks stuff =================================
     private Set<Predicate<T>> onChangeActions = new HashSet<>();
 
-    private ConcurrentHashSet<Consumer<T>> async_onChangeActions = new ConcurrentHashSet<>();
+    private Set<Consumer<T>> async_onChangeActions = new ConcurrentHashSet<>();
     private ConcurrentHashSet<Consumer<T>> async_onChangeOnceActions = new ConcurrentHashSet<>();
 
     public Runnable onChangeUntil(Predicate<T> action) {
@@ -85,12 +85,12 @@ public class AtomRef<T> {
 
     public Runnable asyncOnChange(Consumer<T> action) {
         async_onChangeActions.add(action);
-        return () -> async_onChangeActions.getAndRemove(action);
+        return () -> async_onChangeActions.remove(action);
     }
 
     public Runnable asyncOnChangeOnce(Consumer<T> action) {
         async_onChangeOnceActions.add(action);
-        return () -> async_onChangeOnceActions.getAndRemove(action);
+        return () -> async_onChangeOnceActions.remove(action);
     }
 
     private void applySyncUpdate(T newValue) {
@@ -98,7 +98,6 @@ public class AtomRef<T> {
 
         synchronized (this) {
             this.notifyAll();
-            ;
         }
     }
 
@@ -227,15 +226,16 @@ public class AtomRef<T> {
     }
 
     // ================= fancy stuff ===================
-    public class Observer implements AutoCloseable{
+    public class Observer implements AutoCloseable {
         private final Set<Runnable> removers = new ConcurrentHashSet<>();
 
-        private Observer(){}
+        private Observer() {
+        }
 
         public Runnable onChangeUntil(Predicate<T> action) {
             final var remover = AtomRef.this.onChangeUntil(action);
             removers.add(remover);
-            return () ->{
+            return () -> {
                 removers.remove(remover);
                 remover.run();
             };
@@ -258,7 +258,7 @@ public class AtomRef<T> {
         public Runnable asyncOnChange(Consumer<T> action) {
             final var remover = AtomRef.this.asyncOnChange(action);
             removers.add(remover);
-            return () ->{
+            return () -> {
                 removers.remove(remover);
                 remover.run();
             };
@@ -267,32 +267,38 @@ public class AtomRef<T> {
         public Runnable asyncOnChangeOnce(Consumer<T> action) {
             final var remover = AtomRef.this.asyncOnChangeOnce(action);
             removers.add(remover);
-            return () ->{
+            return () -> {
                 removers.remove(remover);
                 remover.run();
             };
         }
 
-        public AtomRef<T> getAtom(){
+        public AtomRef<T> getAtom() {
             return AtomRef.this;
         }
 
         @Override
-        public void close(){
-            for(final var remover : removers){
+        public void close() {
+            for (final var remover : removers) {
                 remover.run();
             }
         }
     }
 
-    public void observe(Consumer<Observer> action){
-        try(final var observer = new Observer()){
+    public Observer observe() {
+        return new Observer();
+    }
+
+    public void observe(Consumer<Observer> action) {
+        try (final var observer = observe()) {
             action.accept(observer);
         }
     }
 
-    public Observer getObserver(){
-        return new Observer();
+    public <R> R observe(Function<Observer, R> action) {
+        try (final var observer = observe()) {
+            return action.apply(observer);
+        }
     }
 }
 
