@@ -4,7 +4,6 @@ import asynchronous.futures.Deferred;
 import asynchronous.futures.Promise;
 import data.ConcurrentHashSet;
 
-import java.util.HashSet;
 import java.util.Set;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
@@ -19,12 +18,12 @@ import java.util.function.Predicate;
  */
 public class AtomRef<T> {
     private volatile T value;
-    private Lock writeLock = new ReentrantLock();
-    private Deferred<T> nextValue = new Deferred<>();
+    private final Lock writeLock = new ReentrantLock();
+    private volatile Deferred<T> nextValue = new Deferred<>();
 
     // ====================== checking ====================
-    private BiPredicate<T, T> test;
-    private Predicate<T> filter;
+    private final BiPredicate<T, T> test;
+    private final Predicate<T> filter;
 
     private boolean okToSet(T currentValue, T newValue) {
         return filter.test(newValue) &&
@@ -66,10 +65,10 @@ public class AtomRef<T> {
 
 
     // ====================== onChange callbacks stuff =================================
-    private Set<Predicate<T>> onChangeActions = new HashSet<>();
+    private final Set<Predicate<T>> onChangeActions = new ConcurrentHashSet<>();
 
-    private Set<Consumer<T>> async_onChangeActions = new ConcurrentHashSet<>();
-    private ConcurrentHashSet<Consumer<T>> async_onChangeOnceActions = new ConcurrentHashSet<>();
+    private final Set<Consumer<T>> async_onChangeActions = new ConcurrentHashSet<>();
+    private final ConcurrentHashSet<Consumer<T>> async_onChangeOnceActions = new ConcurrentHashSet<>();
 
     public Runnable onChangeUntil(Predicate<T> action) {
         onChangeActions.add(action);
@@ -148,6 +147,19 @@ public class AtomRef<T> {
         return update;
     }
 
+    public T getAndSet(T newValue) {
+        return getAndMod(value -> newValue);
+    }
+
+    public T setAndGet(T newValue) {
+        trySet(newValue);
+        return newValue;
+    }
+
+    public void set(T newValue) {
+        trySet(newValue);
+    }
+
     public boolean tryMod(Function<T, T> mod) {
         T newValue;
         boolean update = false;
@@ -215,19 +227,6 @@ public class AtomRef<T> {
         }
 
         return result;
-    }
-
-    public T getAndSet(T newValue) {
-        return getAndMod(value -> newValue);
-    }
-
-    public T setAndGet(T newValue) {
-        trySet(newValue);
-        return newValue;
-    }
-
-    public void set(T newValue) {
-        trySet(newValue);
     }
 
     public void mod(Function<T, T> mod) {
