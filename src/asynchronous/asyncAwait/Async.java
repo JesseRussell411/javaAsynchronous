@@ -66,13 +66,13 @@ public class Async {
      * @throws InterruptedException
      */
     public void execute(AtomInt maxThreadCount, AtomBool listen, AtomBool stop) throws InterruptedException {
-        try (final var maxThreadCountObserver = maxThreadCount.observe(); final var listenObserver = listen.observe(); final var stopObserver = stop.observe()) {
-            maxThreadCountObserver.asyncOnChange(v -> {
+        try (final var maxThreadCountObserver = maxThreadCount.onChange().observe(); final var listenObserver = listen.onChange().observe(); final var stopObserver = stop.onChange().observe()) {
+            maxThreadCountObserver.callback_async(v -> {
                 synchronized (executeWaitLock) {
                     executeWaitLock.notifyAll();
                 }
             });
-            stopObserver.asyncOnChange(v -> {
+            stopObserver.callback_async(v -> {
                 if (v == false)
                     return;
 
@@ -80,7 +80,7 @@ public class Async {
                     executeWaitLock.notifyAll();
                 }
             });
-            listenObserver.asyncOnChange(v -> {
+            listenObserver.callback_async(v -> {
                 synchronized (executeWaitLock) {
                     executeWaitLock.notifyAll();
                 }

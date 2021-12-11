@@ -16,10 +16,11 @@ import java.util.function.Predicate;
 /**
  * @param <T>
  */
-public class AtomRef<T> {
+public class AtomRef<T> implements Atom<T>{
     private volatile T value;
     private final Lock writeLock = new ReentrantLock();
-    private volatile Deferred<T> nextValue = new Deferred<>();
+    private final Observable<T> observable;
+    private final Consumer<T> update;
 
     // ====================== checking ====================
     private final BiPredicate<T, T> test;
@@ -35,6 +36,9 @@ public class AtomRef<T> {
         this.test = test != null ? test : (currentValue, newValue) -> currentValue != newValue;
         this.filter = filter != null ? filter : (newValue) -> true;
         this.value = value;
+        final var observable_create_result = Observable.<T>create();
+        observable = observable_create_result.observable;
+        update = observable_create_result.update;
 
         if (!this.filter.test(this.value)) {
             throw new IllegalStateException("Initial value"
@@ -59,72 +63,11 @@ public class AtomRef<T> {
         return value;
     }
 
-    public Promise<T> getNext(){
-        return nextValue.promise();
+    public Promise<T> getNext() {
+        return observable.getNext();
     }
 
-
-    // ====================== onChange callbacks stuff =================================
-    private final Set<Predicate<T>> onChangeActions = new ConcurrentHashSet<>();
-
-    private final Set<Consumer<T>> async_onChangeActions = new ConcurrentHashSet<>();
-    private final ConcurrentHashSet<Consumer<T>> async_onChangeOnceActions = new ConcurrentHashSet<>();
-
-    public Runnable onChangeUntil(Predicate<T> action) {
-        onChangeActions.add(action);
-        return () -> onChangeActions.remove(action);
-    }
-
-    public Runnable onChange(Consumer<T> action) {
-        return onChangeUntil(newValue -> {
-            action.accept(newValue);
-            return false;
-        });
-    }
-
-    public Runnable onChangeOnce(Consumer<T> action) {
-        return onChangeUntil(newValue -> {
-            action.accept(newValue);
-            return true;
-        });
-    }
-
-    public Runnable asyncOnChange(Consumer<T> action) {
-        async_onChangeActions.add(action);
-        return () -> async_onChangeActions.remove(action);
-    }
-
-    public Runnable asyncOnChangeOnce(Consumer<T> action) {
-        async_onChangeOnceActions.add(action);
-        return () -> async_onChangeOnceActions.remove(action);
-    }
-
-    private void applySyncUpdate(T newValue) {
-        nextValue.settle().resolve(newValue);
-        nextValue = new Deferred<>();
-        onChangeActions.removeIf(action -> action.test(newValue));
-
-        synchronized (this) {
-            this.notifyAll();
-        }
-    }
-
-    private void applyAsyncUpdate(T newValue) {
-        // single use actions
-        for (final var current : async_onChangeOnceActions) {
-            final var action = async_onChangeOnceActions.getAndRemove(current);
-
-            if (action != null) {
-                action.accept(newValue);
-            }
-        }
-        // multi use actions
-        for (final var action : async_onChangeActions) {
-            action.accept(newValue);
-        }
-
-    }
-    //
+    public Observable<T> onChange() { return observable; }
 
     public boolean trySet(T newValue) {
         boolean update = false;
@@ -133,18 +76,15 @@ public class AtomRef<T> {
             writeLock.lock();
             if (okToSet(this.value, newValue)) {
                 this.value = newValue;
-                update = true;
-                applySyncUpdate(newValue);
+            } else {
+                return false;
             }
         } finally {
             writeLock.unlock();
         }
 
-        if (update) {
-            applyAsyncUpdate(newValue);
-        }
-
-        return update;
+        this.update.accept(newValue);
+        return true;
     }
 
     public T getAndSet(T newValue) {
@@ -169,18 +109,16 @@ public class AtomRef<T> {
             newValue = mod.apply(value);
 
             if (okToSet(value, newValue)) {
-                update = true;
-                applySyncUpdate(newValue);
+                this.value = newValue;
+            } else {
+                return false;
             }
         } finally {
             writeLock.unlock();
         }
 
-        if (update) {
-            applyAsyncUpdate(newValue);
-        }
-
-        return update;
+        this.update.accept(newValue);
+        return true;
     }
 
     public T modAndGet(Function<T, T> mod) {
@@ -192,17 +130,15 @@ public class AtomRef<T> {
             newValue = mod.apply(value);
 
             if (okToSet(value, newValue)) {
-                update = true;
-                applySyncUpdate(newValue);
+                value = newValue;
+            } else {
+                return value;
             }
         } finally {
             writeLock.unlock();
         }
 
-        if (update) {
-            applyAsyncUpdate(newValue);
-        }
-
+        this.update.accept(newValue);
         return newValue;
     }
 
@@ -215,98 +151,20 @@ public class AtomRef<T> {
             result = value;
             newValue = mod.apply(value);
             if (okToSet(value, newValue)) {
-                update = true;
-                applySyncUpdate(newValue);
+                this.value = newValue;
+            } else{
+                return result;
             }
         } finally {
             writeLock.unlock();
         }
 
-        if (update) {
-            applyAsyncUpdate(newValue);
-        }
-
+        this.update.accept(newValue);
         return result;
     }
 
     public void mod(Function<T, T> mod) {
         tryMod(mod);
-    }
-
-    // ================= fancy stuff ===================
-    public class Observer implements AutoCloseable {
-        private final Set<Runnable> removers = new ConcurrentHashSet<>();
-
-        private Observer() {
-        }
-
-        public Runnable onChangeUntil(Predicate<T> action) {
-            final var remover = AtomRef.this.onChangeUntil(action);
-            removers.add(remover);
-            return () -> {
-                removers.remove(remover);
-                remover.run();
-            };
-        }
-
-        public Runnable onChange(Consumer<T> action) {
-            return onChangeUntil(newValue -> {
-                action.accept(newValue);
-                return false;
-            });
-        }
-
-        public Runnable onChangeOnce(Consumer<T> action) {
-            return onChangeUntil(newValue -> {
-                action.accept(newValue);
-                return true;
-            });
-        }
-
-        public Runnable asyncOnChange(Consumer<T> action) {
-            final var remover = AtomRef.this.asyncOnChange(action);
-            removers.add(remover);
-            return () -> {
-                removers.remove(remover);
-                remover.run();
-            };
-        }
-
-        public Runnable asyncOnChangeOnce(Consumer<T> action) {
-            final var remover = AtomRef.this.asyncOnChangeOnce(action);
-            removers.add(remover);
-            return () -> {
-                removers.remove(remover);
-                remover.run();
-            };
-        }
-
-        public AtomRef<T> getAtom() {
-            return AtomRef.this;
-        }
-
-        @Override
-        public void close() {
-            for (final var remover : removers) {
-                remover.run();
-            }
-        }
-    }
-
-    public Observer observe() {
-        return new Observer();
-    }
-
-    public void observe(Consumer<Observer> action) {
-        try (final var observer = observe()) {
-            action.accept(observer);
-        }
-    }
-
-    public <R> R observe(Function<Observer, R> action) {
-        try (final var observer = observe()) {
-            return action.apply(observer);
-        }
     }
 }
 

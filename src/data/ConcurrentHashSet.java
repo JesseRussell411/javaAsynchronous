@@ -36,6 +36,10 @@ public class ConcurrentHashSet<T> implements Set<T> {
     public boolean add(T value) {
         return map.put(value, value) == null;
     }
+    public T addAndGet(T value) {
+        add(value);
+        return value;
+    }
 
     public T getAndRemove(T value) {
         return map.remove(value);

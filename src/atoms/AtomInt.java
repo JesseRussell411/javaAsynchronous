@@ -5,7 +5,7 @@ import functionPlus.NotNull;
 
 public class AtomInt extends AtomRef<Integer> {
     public AtomInt(Integer value) {
-        super(value, NotNull::check);
+        super(value, NotNull::test);
     }
 
     public AtomInt() {
@@ -28,6 +28,12 @@ public class AtomInt extends AtomRef<Integer> {
         }
     }
 
+    public void add(int value) {
+        if (value != 0) {
+            mod(thisValue -> thisValue + value);
+        }
+    }
+
     public Integer incrementAndGet() {
         return addAndGet(1);
     }
@@ -42,5 +48,13 @@ public class AtomInt extends AtomRef<Integer> {
 
     public Integer getAndDecrement() {
         return getAndAdd(-1);
+    }
+
+    public void increment() {
+        add(1);
+    }
+
+    public void decrement() {
+        add(-1);
     }
 }

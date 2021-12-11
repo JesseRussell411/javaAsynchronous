@@ -3,23 +3,25 @@ package atoms;
 
 import functionPlus.NotNull;
 
-import java.util.concurrent.atomic.AtomicBoolean;
-
 public class AtomBool extends AtomRef<Boolean> {
     public AtomBool(Boolean value) {
-        super(value, NotNull::check);
+        super(value, NotNull::test);
     }
 
     public AtomBool() {
         this(false);
     }
 
-    public Boolean toggleAndGet() {
+    public Boolean notAndGet() {
         return modAndGet(value -> !value);
     }
 
-    public Boolean getAndToggle() {
+    public Boolean getAndNot() {
         return getAndMod(value -> !value);
+    }
+
+    public void not() {
+        mod(value -> !value);
     }
 
     public Boolean andAndGet(boolean other) {
@@ -35,6 +37,12 @@ public class AtomBool extends AtomRef<Boolean> {
             return get();
         } else {
             return getAndMod(value -> value && other);
+        }
+    }
+
+    public void and(boolean other) {
+        if (other == false) {
+            set(false);
         }
     }
 
@@ -54,11 +62,21 @@ public class AtomBool extends AtomRef<Boolean> {
         }
     }
 
+    public void or(boolean other) {
+        if (other == true) {
+            set(true);
+        }
+    }
+
     public Boolean xorAndGet(boolean other) {
         return modAndGet(value -> value ^ other);
     }
 
-    public boolean getAndXor(boolean other) {
+    public Boolean getAndXor(boolean other) {
         return getAndMod(value -> value ^ other);
+    }
+
+    public void xor(boolean other) {
+        mod(value -> value ^ other);
     }
 }

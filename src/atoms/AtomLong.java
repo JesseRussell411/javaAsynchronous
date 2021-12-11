@@ -5,7 +5,7 @@ import functionPlus.NotNull;
 
 public class AtomLong extends AtomRef<Long> {
     public AtomLong(Long value) {
-        super(value, NotNull::check);
+        super(value, NotNull::test);
     }
 
     public AtomLong() {
@@ -28,6 +28,13 @@ public class AtomLong extends AtomRef<Long> {
         }
     }
 
+
+    public void add(long value) {
+        if (value != 0) {
+            mod(thisValue -> thisValue + value);
+        }
+    }
+
     public Long incrementAndGet() {
         return addAndGet(1);
     }
@@ -42,5 +49,13 @@ public class AtomLong extends AtomRef<Long> {
 
     public Long getAndDecrement() {
         return getAndAdd(-1);
+    }
+
+    public void increment() {
+        add(1);
+    }
+
+    public void decrement() {
+        add(-1);
     }
 }
