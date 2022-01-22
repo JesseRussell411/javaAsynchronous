@@ -12,10 +12,10 @@ import asynchronous.*;
 import asynchronous.futures.Deferred;
 import asynchronous.futures.Promise;
 import asynchronous.futures.exceptions.FutureCancellationException;
-import exceptionsPlus.UncheckedInterruptedException;
+import atom.Atom;
 import exceptionsPlus.UncheckedWrapper;
 import functionPlus.*;
-import atoms.*;
+
 
 /**
  * Asynchronous function used for asynchronous programming. Call Async.execute at the end of the main method to run called Async functions.
@@ -65,22 +65,23 @@ public class Async {
      *
      * @throws InterruptedException
      */
-    public void execute(AtomInt maxThreadCount, AtomBool listen, AtomBool stop) throws InterruptedException {
-        try (final var maxThreadCountObserver = maxThreadCount.onChange().observe(); final var listenObserver = listen.onChange().observe(); final var stopObserver = stop.onChange().observe()) {
-            maxThreadCountObserver.callback_async(v -> {
+    public void execute(Atom<Integer> maxThreadCount, Atom<Boolean> listen, Atom<Boolean> stop) throws InterruptedException {
+        try (final var maxThreadCountObserver = maxThreadCount.tempObserve(); final var listenObserver = listen.tempObserve(); final var stopObserver = stop.tempObserve()) {
+
+            maxThreadCountObserver.react(change -> {
                 synchronized (executeWaitLock) {
                     executeWaitLock.notifyAll();
                 }
             });
-            stopObserver.callback_async(v -> {
-                if (v == false)
+            stopObserver.react(change -> {
+                if (change.newValue == false)
                     return;
 
                 synchronized (executeWaitLock) {
                     executeWaitLock.notifyAll();
                 }
             });
-            listenObserver.callback_async(v -> {
+            listenObserver.react(change -> {
                 synchronized (executeWaitLock) {
                     executeWaitLock.notifyAll();
                 }
@@ -124,32 +125,32 @@ public class Async {
         }
     }
 
-    public void execute(AtomBool listen, AtomBool stop) throws InterruptedException {
-        execute(new AtomInt(1), listen, stop);
+    public void execute(Atom<Boolean> listen, Atom<Boolean> stop) throws InterruptedException {
+        execute(new Atom<Integer>(1), listen, stop);
     }
 
-    public void execute(AtomInt maxThreadCount) throws InterruptedException {
-        execute(maxThreadCount, new AtomBool(false), new AtomBool(false));
+    public void execute(Atom<Integer> maxThreadCount) throws InterruptedException {
+        execute(maxThreadCount, new Atom<Boolean>(false), new Atom<Boolean>(false));
     }
 
     public void execute(int maxThreadCount, boolean listen) throws InterruptedException {
-        execute(new AtomInt(maxThreadCount), new AtomBool(listen), new AtomBool(false));
+        execute(new Atom<Integer>(maxThreadCount), new Atom<Boolean>(listen), new Atom<Boolean>(false));
     }
 
     public void execute(int maxThreadCount) throws InterruptedException {
-        execute(new AtomInt(maxThreadCount), new AtomBool(false), new AtomBool(false));
+        execute(new Atom<Integer>(maxThreadCount), new Atom<Boolean>(false), new Atom<Boolean>(false));
     }
 
-    public void execute(int maxThreadCount, boolean listen, AtomBool stop) throws InterruptedException {
-        execute(new AtomInt(maxThreadCount), new AtomBool(listen), stop);
+    public void execute(int maxThreadCount, boolean listen, Atom<Boolean> stop) throws InterruptedException {
+        execute(new Atom<Integer>(maxThreadCount), new Atom<Boolean>(listen), stop);
     }
 
-    public void execute(int maxThreadCount, AtomBool stop) throws InterruptedException {
-        execute(new AtomInt(maxThreadCount), new AtomBool(false), stop);
+    public void execute(int maxThreadCount, Atom<Boolean> stop) throws InterruptedException {
+        execute(new Atom<Integer>(maxThreadCount), new Atom<Boolean>(false), stop);
     }
 
     public void execute() throws InterruptedException {
-        execute(new AtomInt(1), new AtomBool(false), new AtomBool(false));
+        execute(new Atom<Integer>(1), new Atom<Boolean>(false), new Atom<Boolean>(false));
     }
 
 
