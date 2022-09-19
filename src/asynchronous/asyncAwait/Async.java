@@ -164,7 +164,7 @@ public class Async {
         }
 
         /**
-         * Awaits the given future, returning it's result when it's resolved.
+         * Awaits the given future, returning its result when it's resolved.
          *
          * @param <T>    The type of the future.
          * @param future The future to await.
@@ -204,7 +204,7 @@ public class Async {
         }
 
         /**
-         * Awaits the given future, returning it's result when it's resolved.
+         * Awaits the given future, returning its result when it's resolved.
          *
          * @param <T>      The type of the future.
          * @param future   The future to await.
